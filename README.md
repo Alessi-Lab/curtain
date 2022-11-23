@@ -1,27 +1,17 @@
-# CurtainTwo
+# Curtain
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 13.3.3.
+![UKRI-UD](https://raw.githubusercontent.com/Alessi-Lab/curtain/master/src/assets/logo/UKRI_MRC_%20PPU_Dundee.png)
 
-## Development server
+![ASAP](https://raw.githubusercontent.com/Alessi-Lab/curtain/master/src/assets/logo/ASAP_FullColor.png)
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+## Installation
 
-## Code scaffolding
+Requirements:
+`docker-compose`
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
 
-## Build
-
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
-
-## Running unit tests
-
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
-
-## Running end-to-end tests
-
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
-
-## Further help
-
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+- From this repository, download `dockerfiles` folder and `docker-compose.yml` file into the same folder.
+- Edit file `dockerfiles/Dockerfile-curtain` and `dockerfiles/Dockerfile-curtainptm`, changing `http://curtain.omics.quest/` to the intended url of the backend server.
+- The `docker-compose.yml` file also include service for `nginx-proxy-manager` to help with configuring reverse proxy. If it is not needed, please remove it from your `docker-compose.yml`
+- Then `docker-compose build` to build all the neccessary images
+- Finally `docker-compose up -d`
