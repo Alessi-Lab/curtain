@@ -19,6 +19,13 @@ import {CitationComponent} from "../citation/citation.component";
 import {SampleAnnotationComponent} from "../sample-annotation/sample-annotation.component";
 import {Project} from "../../classes/project";
 import {SampleOrderAndHideComponent} from "../sample-order-and-hide/sample-order-and-hide.component";
+import {LoginModalComponent} from "../../accounts/login-modal/login-modal.component";
+import {AccountsService} from "../../accounts/accounts.service";
+import {SessionSettingsComponent} from "../session-settings/session-settings.component";
+import {AccountsComponent} from "../../accounts/accounts/accounts.component";
+import {reviver, User} from "curtain-web-api";
+import {DefaultColorPaletteComponent} from "../default-color-palette/default-color-palette.component";
+import {DataSelectionManagementComponent} from "../data-selection-management/data-selection-management.component";
 
 @Component({
   selector: 'app-home',
@@ -31,30 +38,78 @@ export class HomeComponent implements OnInit {
   uniqueLink: string = ""
   filterModel: string = ""
   currentID: string = ""
-  constructor(private toast: ToastService, private modal: NgbModal, private route: ActivatedRoute, public data: DataService, private settings: SettingsService, public web: WebService, private uniprot: UniprotService, private scroll: ScrollService) {
-    if (location.protocol === "https:" && location.hostname === "curtainptm.proteo.info") {
-      this.toast.show("Initialization", "Error: The webpage requires the url protocol to be http instead of https")
-    }
 
-    this.route.params.subscribe(params => {
-      if (params) {
-        if (params["settings"]) {
-          this.toast.show("Initialization", "Fetching data from session " + params["settings"])
-          if (this.currentID !== params["settings"]) {
-            this.currentID = params["settings"]
-            this.web.postSettings(params["settings"], "").subscribe(data => {
-              if (data.body) {
-
-                const a = JSON.parse(<string>data.body, this.web.reviver)
-                this.restoreSettings(a).then()
+  constructor(public accounts: AccountsService, private toast: ToastService, private modal: NgbModal, private route: ActivatedRoute, public data: DataService, private settings: SettingsService, public web: WebService, private uniprot: UniprotService, private scroll: ScrollService) {
+    // if (location.protocol === "https:" && location.hostname === "curtainptm.proteo.info") {
+    //   this.toast.show("Initialization", "Error: The webpage requires the url protocol to be http instead of https")
+    // }
+    this.initialize().then(
+      () => {
+        this.route.params.subscribe(params => {
+          console.log(params)
+          if (params) {
+            if (params["settings"] && params["settings"].startsWith("access_token")){
+              console.log(params["settings"])
+            } else if (params["settings"] && params["settings"].length > 0) {
+              console.log(params["settings"])
+              const settings = params["settings"].split("&")
+              let token: string = ""
+              if (settings.length > 1) {
+                token = settings[1]
+                this.data.tempLink = true
+              } else {
+                this.data.tempLink = false
               }
-            })
+              this.toast.show("Initialization", "Fetching data from session " + settings[0]).then()
+              if (this.currentID !== settings[0]) {
+                this.currentID = settings[0]
+                this.accounts.curtainAPI.getSessionSettings(settings[0]).then((d:any)=> {
+                  this.data.session = d.data
+                  this.accounts.curtainAPI.postSettings(settings[0], token).then((data:any) => {
+                    if (data.data) {
+                      this.restoreSettings(data.data).then(result => {
+                        this.accounts.curtainAPI.getSessionSettings(settings[0]).then((d:any)=> {
+                          this.data.session = d.data
+                          this.settings.settings.currentID = d.data.link_id
+                        })
+                      })
+                      this.accounts.curtainAPI.getOwnership(settings[0]).then((data:any) => {
+                        if (data.ownership) {
+                          this.accounts.isOwner = true
+                        } else {
+                          this.accounts.isOwner = false
+                        }
+                      }).catch(error => {
+                        this.accounts.isOwner = false
+                      })
+                    }
+                  }).catch(error => {
+                    if (error.status === 400) {
+                      this.toast.show("Credential Error", "Login Information Required").then()
+                      const login = this.openLoginModal()
+                      login.componentInstance.loginStatus.asObservable().subscribe((data:boolean) => {
+                        if (data) {
+                          location.reload()
+                        }
+                      })
+                    }
+                  })
+                })
+              }
+            }
           }
-        }
+        })
       }
-    })
+    )
+
 
   }
+
+  async initialize() {
+    await this.accounts.curtainAPI.getSiteProperties()
+    await this.accounts.curtainAPI.user.loadFromDB()
+  }
+
 
   ngOnInit(): void {
 
@@ -66,14 +121,15 @@ export class HomeComponent implements OnInit {
       if (this.data.selected.length > 0) {
         this.data.finishedProcessingData.next(e)
         this.rawFiltered = this.data.raw.df.where(r => this.data.selected.includes(r[this.data.rawForm.primaryIDs])).bake()
+        console.log(this.rawFiltered)
         for (const s of this.rawFiltered) {
-          this.addGeneToSelected(s);
+          this.addGeneToSelected(s).then();
         }
       }
     }
   }
 
-  private addGeneToSelected(s: any) {
+  private async addGeneToSelected(s: any) {
     let uni: any = {}
     if (typeof s === "string") {
       uni = this.uniprot.getUniprotFromPrimary(s)
@@ -91,6 +147,7 @@ export class HomeComponent implements OnInit {
   }
 
   handleSearch(e: selectionData) {
+    console.log(e)
     const rawFiltered = this.data.raw.df.where(r => e.data.includes(r[this.data.rawForm.primaryIDs])).bake()
     this.data.selected = this.data.selected.concat(e.data)
     for (const c of this.data.differentialForm.comparisonSelect) {
@@ -139,6 +196,22 @@ export class HomeComponent implements OnInit {
   }
 
   saveSession() {
+    if (!this.accounts.curtainAPI.user.loginStatus) {
+      if (this.web.siteProperties.non_user_post) {
+        this.saving();
+      } else {
+        this.toast.show("User information", "Please login before saving data session").then()
+      }
+    } else {
+      if (!this.accounts.curtainAPI.user.curtainLinkLimitExceeded ) {
+        this.saving();
+      } else {
+        this.toast.show("User information", "Curtain link limit exceed").then()
+      }
+    }
+  }
+
+  private saving() {
     const data: any = {
       raw: this.data.raw.originalFile,
       rawForm: this.data.rawForm,
@@ -152,12 +225,14 @@ export class HomeComponent implements OnInit {
       fetchUniprot: this.data.fetchUniprot,
       annotatedData: this.data.annotatedData
     }
-    console.log(data.settings)
-    this.web.putSettings(data).subscribe(data => {
-      if (data.body) {
-        this.settings.settings.currentID = data.body
-        this.uniqueLink = location.origin +"/#/" + this.settings.settings.currentID
+    this.accounts.curtainAPI.putSettings(data, !this.accounts.curtainAPI.user.loginStatus, data.settings.description).then((data: any) => {
+      if (data.data) {
+        this.data.session = data.data
+        this.settings.settings.currentID = data.data.link_id
+        this.uniqueLink = location.origin + "/#/" + this.settings.settings.currentID
       }
+    }).catch(err => {
+      this.toast.show("User information", "Curtain link cannot be saved").then()
     })
   }
 
@@ -170,7 +245,12 @@ export class HomeComponent implements OnInit {
     if (!object.settings.project) {
       object.settings.project = new Project()
     }
-
+    if (!object.settings.scatterPlotMarkerSize) {
+      object.settings.scatterPlotMarkerSize = 10
+    }
+    if (!object.settings.defaultColorList) {
+      object.settings.defaultColorList = this.data.palette["pastel"]
+    }
     if (!object.settings.prideAccession) {
       object.settings.prideAccession = ""
     }
@@ -247,7 +327,7 @@ export class HomeComponent implements OnInit {
         }
       }
       if (object.selections) {
-        console.log(object.selections)
+
         for (const s in object.selections) {
           if (!this.data.selectOperationNames.includes(s)) {
             this.data.selectOperationNames.push(s)
@@ -276,8 +356,13 @@ export class HomeComponent implements OnInit {
       this.data.differential = new InputFile(fromCSV(object.processed), "processedFile.txt", object.processed)
     }
     object.settings.version = 2
-    this.settings.settings = object.settings;
+    console.log(object.settings.barchartColorMap)
+    for (const i in object.settings) {
+      // @ts-ignore
+      this.settings.settings[i] = object.settings[i]
+    }
     this.data.restoreTrigger.next(true)
+    console.log(this.settings.settings.barchartColorMap)
   }
 
   clearSelections() {
@@ -321,6 +406,50 @@ export class HomeComponent implements OnInit {
   openSampleSettings() {
     const ref = this.modal.open(SampleOrderAndHideComponent)
 
+  }
+
+  openLoginModal() {
+    const ref = this.modal.open(LoginModalComponent)
+    return ref
+  }
+
+  openSessionSettings() {
+    const ref = this.modal.open(SessionSettingsComponent)
+    console.log(this.settings.settings.currentID)
+    ref.componentInstance.currentID = this.settings.settings.currentID
+  }
+
+  openAccountModal() {
+    const ref = this.modal.open(AccountsComponent, {size:"xl"})
+  }
+
+  downloadAll() {
+    const pageNumber = Math.ceil(this.rawFiltered.count()/this.data.pageSize)
+    for (let i = 1; i <= pageNumber; i++) {
+      this.data.page = i
+      this.data.externalBarChartDownloadTrigger.next(true)
+    }
+
+  }
+
+  openColorPaletteModal() {
+    const ref = this.modal.open(DefaultColorPaletteComponent, {size: "xl", scrollable: true})
+
+  }
+
+  selectionManagementModal() {
+    const ref = this.modal.open(DataSelectionManagementComponent, {scrollable: true, size: "xl"})
+    ref.closed.subscribe(data => {
+      if (data) {
+        this.data.selectedGenes = []
+        if (this.data.selected.length > 0) {
+          this.handleFinish(true)
+        } else {
+          this.clearSelections()
+        }
+
+      }
+    })
   }
 }
 

@@ -43,6 +43,14 @@ import { SampleOrderAndHideComponent } from './components/sample-order-and-hide/
 import { ComparisonSelectionsComponent } from './components/comparison-selections/comparison-selections.component';
 import { RankPlotComponent } from './components/rank-plot/rank-plot.component';
 import { VolcanoPlotTextAnnotationComponent } from './components/volcano-plot-text-annotation/volcano-plot-text-annotation.component';
+
+import { LoginModalComponent } from './accounts/login-modal/login-modal.component';
+import { SessionSettingsComponent } from './components/session-settings/session-settings.component';
+import { AccountsComponent } from './accounts/accounts/accounts.component';
+import {AccountsModule} from "./accounts/accounts.module";
+import { DefaultColorPaletteComponent } from './components/default-color-palette/default-color-palette.component';
+import { DataSelectionManagementComponent } from './components/data-selection-management/data-selection-management.component';
+import { SessionExpiredModalComponent } from './components/session-expired-modal/session-expired-modal.component';
 PlotlyModule.plotlyjs = PlotlyJS;
 @NgModule({
   declarations: [
@@ -79,21 +87,27 @@ PlotlyModule.plotlyjs = PlotlyJS;
     SampleOrderAndHideComponent,
     ComparisonSelectionsComponent,
     RankPlotComponent,
-    VolcanoPlotTextAnnotationComponent
+    VolcanoPlotTextAnnotationComponent,
+    SessionSettingsComponent,
+    DefaultColorPaletteComponent,
+    DataSelectionManagementComponent,
+    SessionExpiredModalComponent,
   ],
     imports: [
-        BrowserModule,
-        AppRoutingModule,
-        NgbModule,
-        FormsModule,
-        HttpClientModule,
-        PlotlyModule,
-        ReactiveFormsModule,
-        ColorPickerModule,
-        QuillModule.forRoot(),
+      BrowserModule,
+      AppRoutingModule,
+      NgbModule,
+      FormsModule,
+      HttpClientModule,
+      PlotlyModule,
+      ReactiveFormsModule,
+      ColorPickerModule,
+      QuillModule.forRoot(),
+      AccountsModule,
       NgxPrintModule
     ],
-  providers: [HttpClient],
+  providers: [HttpClient,
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

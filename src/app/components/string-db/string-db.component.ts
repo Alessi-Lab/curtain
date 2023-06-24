@@ -41,7 +41,7 @@ export class StringDbComponent implements OnInit {
       this.organism = this._data.organism
       this.ids = ids
       this.selectedGenes = this._data.selectedGenes
-      this.getString()
+      this.getString().then()
     }
 
   }
@@ -56,7 +56,7 @@ export class StringDbComponent implements OnInit {
     })
   }
 
-  getString() {
+  async getString() {
     if (this.requiredScore > 1000) {
       this.requiredScore = 1000
     }
@@ -66,9 +66,9 @@ export class StringDbComponent implements OnInit {
 
     if (this.selection !== "") {
       const df = this.data.currentDF.where(r => r[this.data.differentialForm.comparison] === this.selection).bake()
-      this.updateIncreaseDecrease(increased, decreased, allGenes, df);
+      await this.updateIncreaseDecrease(increased, decreased, allGenes, df);
     } else {
-      this.updateIncreaseDecrease(increased, decreased, allGenes, this.data.currentDF);
+      await this.updateIncreaseDecrease(increased, decreased, allGenes, this.data.currentDF);
     }
 
 
@@ -89,7 +89,7 @@ export class StringDbComponent implements OnInit {
     }, 3000)
   }
 
-  private updateIncreaseDecrease(increased: string[], decreased: string[], allGenes: string[], df: IDataFrame) {
+  private async updateIncreaseDecrease(increased: string[], decreased: string[], allGenes: string[], df: IDataFrame) {
     for (const r of df) {
       const uni: any = this.uniprot.getUniprotFromPrimary(r[this.data.differentialForm.primaryIDs])
       if (uni) {
@@ -117,7 +117,7 @@ export class StringDbComponent implements OnInit {
 
   handleSelection(e: string) {
     this.selection = e
-    this.getString()
+    this.getString().then()
   }
 
   downloadSVG() {

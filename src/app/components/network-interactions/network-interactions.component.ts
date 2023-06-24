@@ -5,6 +5,7 @@ import {InteractomeAtlasService} from "../../interactome-atlas.service";
 import {fromCSV} from "data-forge";
 import {UniprotService} from "../../uniprot.service";
 import {ScrollService} from "../../scroll.service";
+import {getInteractomeAtlas, getStringDBInteractions} from "curtain-web-api";
 
 @Component({
   selector: 'app-network-interactions',
@@ -117,9 +118,12 @@ export class NetworkInteractionsComponent implements OnInit {
   geneMap: any = {}
   @Input() set genes(value: string[]) {
     const genes: string[] = []
-    console.log(value)
+    this.getGenes(value, genes).then();
+  }
+
+  private async getGenes(value: string[], genes: string[]) {
     for (const v of value) {
-      const uni = this.uniprot.getUniprotFromPrimary(v)
+      const uni: any = this.uniprot.getUniprotFromPrimary(v)
       if (uni) {
         if (uni["Gene Names"] !== "") {
           genes.push(uni["Gene Names"])
@@ -130,7 +134,7 @@ export class NetworkInteractionsComponent implements OnInit {
       const _genes: string[] = []
       for (const v of genes) {
         const g = v.split(";")[0]
-        if (g!=="") {
+        if (g !== "") {
           if (!_genes.includes(g)) {
             _genes.push(g)
             this.geneMap[g] = v
@@ -141,11 +145,11 @@ export class NetworkInteractionsComponent implements OnInit {
       this._genes = _genes
 
       if (this._genes.length > 2) {
-        this.getInteractions().then()
+        await this.getInteractions()
       }
     }
-
   }
+
   constructor(private scroll: ScrollService, private data: DataService, private dbString: DbStringService, private interac: InteractomeAtlasService, private uniprot: UniprotService) { }
 
   ngOnInit(): void {
@@ -158,8 +162,8 @@ export class NetworkInteractionsComponent implements OnInit {
     let result: any = {}
     let resultInteractome: any = {}
     try {
-      result = await this.dbString.getStringDBInteractions(this._genes, this.uniprot.organism, this._requiredScore*1000, this.networkType).toPromise()
-      const tempDF = fromCSV(<string>result)
+      result = await getStringDBInteractions(this._genes, this.uniprot.organism, this._requiredScore*1000, this.networkType)
+      const tempDF = fromCSV(<string>result.data)
       if (tempDF.count() > 0) {
         for (const r of tempDF) {
           let checked = true
@@ -203,10 +207,10 @@ export class NetworkInteractionsComponent implements OnInit {
       console.log("Can't get StringDB data")
     }
     try {
-      resultInteractome = await this.interac.getInteractome(this._genes, "query_query")
-      if (resultInteractome["all_interactions"]) {
-        if (resultInteractome["all_interactions"].length > 0) {
-          for (const r of resultInteractome["all_interactions"]) {
+      const resultInteractome = await getInteractomeAtlas(this._genes, "query_query")
+      if (resultInteractome.data["all_interactions"]) {
+        if (resultInteractome.data["all_interactions"].length > 0) {
+          for (const r of resultInteractome.data["all_interactions"]) {
             const score = parseFloat(r["score"])
             let checked = false
             if (score !== 0) {

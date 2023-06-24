@@ -1,8 +1,50 @@
-<ngb-pagination [(page)]="dataService.page" [boundaryLinks]="true" [maxSize]="10" [rotate]="true" [pageSize]="dataService.pageSize" [collectionSize]="_data.count()"></ngb-pagination>
 <hr>
-<ng-container *ngFor="let r of _data.toArray()|slice: (dataService.page-1) * dataService.pageSize: dataService.page* dataService.pageSize">
-  <app-raw-data-block class="mb-2" [data]="r"></app-raw-data-block>
-</ng-container>
-<ngb-pagination [(page)]="dataService.page" [boundaryLinks]="true" [maxSize]="10" [rotate]="true" [pageSize]="dataService.pageSize" [collectionSize]="_data.count()"></ngb-pagination>
+<form [formGroup]="form" class="mb-2">
+  <div class="d-flex">
+    <div class="p-2">
+      <input type="search" class="form-control" formControlName="filterTerm" placeholder="Filter selected results">
+    </div>
+    <div class="p-2">
+      <div class="form-group">
+        <select formControlName="filterType" class="form-control">
+          <option value="Gene Names">
+            Gene Names
+          </option>
+          <option value="Primary IDs">
+            Primary IDs
+          </option>
+          <option value="Diseases">
+            Involvement in Diseases (UniProt)
+          </option>
+        </select>
+      </div>
+    </div>
+  </div>
+</form>
+<!--<div class="card bg-warning">
+  <div class="card-body">
+    <p>
+      Quick filter of the selected results. This will not affect the search results. Any search term longer than 2 characters will trigger the filter task. Clear the search field to reset the display data to default.
+    </p>
+  </div>
+</div>-->
+<hr>
+
+<div *ngIf="displayDF.count() > 0; else noData">
+  <ngb-pagination [(page)]="dataService.page" [boundaryLinks]="true" [maxSize]="10" [rotate]="true" [pageSize]="dataService.pageSize" [collectionSize]="displayDF.count()"></ngb-pagination>
+  <hr>
+  <ng-container *ngFor="let r of displayDF.toArray()|slice: (dataService.page-1) * dataService.pageSize: dataService.page* dataService.pageSize">
+    <app-raw-data-block class="mb-2" [data]="r"></app-raw-data-block>
+  </ng-container>
+  <ngb-pagination [(page)]="dataService.page" [boundaryLinks]="true" [maxSize]="10" [rotate]="true" [pageSize]="dataService.pageSize" [collectionSize]="displayDF.count()"></ngb-pagination>
+</div>
+<ng-template #noData>
+  <div class="card">
+    <div class="card-body">
+      <h5 class="card-title">No data found</h5>
+      <p class="card-text">Please try a different search term.</p>
+    </div>
+  </div>
+</ng-template>
 
 

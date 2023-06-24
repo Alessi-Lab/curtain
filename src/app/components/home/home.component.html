@@ -1,14 +1,25 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top d-lex flex-wrap">
   <div class="container-fluid">
-    <b style="padding-left: 4px" class="text-dark"><a class="navbar-brand" href="#">Curtain 2.0</a></b>
+    <b style="padding-left: 4px" class="text-dark"><a class="navbar-brand" href="#">Curtain</a></b>
     <ng-container *ngIf="finished">
       <a *ngIf="uniqueLink !== ''" href="{{uniqueLink}}" class="ml-2 text-success">{{uniqueLink}}</a>
-      <div class="d-flex">
-        <div class="p-2">
-          <div ngbDropdown class="d-inline-block">
-            <button class="btn btn-outline-primary ml-2" id="dropdownSession" ngbDropdownToggle>Session</button>
-            <div ngbDropdownMenu aria-labelledby="dropdownSession">
-              <button ngbDropdownItem (click)="saveSession()">Save Session</button>
+
+    </ng-container>
+
+    <div class="d-flex">
+      <div class="p-2">
+
+        <div display="dynamic" ngbDropdown class="d-inline-block">
+
+            <button class="btn btn-outline-primary ml-2" id="dropdownSession" ngbDropdownToggle>Session
+              <ng-container *ngIf="data.session">
+                <span *ngIf="data.session.enable === false" class="badge bg-danger">private</span>
+                <span *ngIf="data.session.enable === true" class="badge bg-primary">shareable</span>
+              </ng-container>
+            </button>
+          <div ngbDropdownMenu aria-labelledby="dropdownSession">
+            <ng-container *ngIf="finished">
+              <button ngbDropdownItem (click)="saveSession()" [disabled]="data.tempLink===true">Save Session</button>
               <button ngbDropdownItem (click)="clearSelections()">Clear Selections</button>
               <button ngbDropdownItem (click)="web.downloadFile('different.txt', data.differential.originalFile)">Download Differential Analysis File</button>
               <button ngbDropdownItem (click)="web.downloadFile('raw.txt', data.raw.originalFile)">Download Raw File</button>
@@ -22,30 +33,53 @@
               <button ngbDropdownItem (click)="openSampleSettings()">
                 Sample Order & Visibility Settings
               </button>
-            </div>
+              <!--<button ngbDropdownItem (click)="downloadAll()">
+                Download all Bar Charts and Violin Plots
+              </button>-->
+              <button ngbDropdownItem (click)="openColorPaletteModal()">
+                Customize Color Palette
+              </button>
+              <button ngbDropdownItem (click)="selectionManagementModal()">
+                Data Selection Management
+              </button>
+            </ng-container>
+            <button ngbDropdownItem (click)="openLoginModal()" *ngIf="accounts.curtainAPI.user.loginStatus===false">
+              Account Login
+            </button>
+            <button ngbDropdownItem (click)="openSessionSettings()" [disabled]="!accounts.getSessionPermission()">
+              Session Settings
+            </button>
+            <ng-container *ngIf="accounts.curtainAPI.user.loginStatus">
+              <button ngbDropdownItem (click)="openAccountModal()">
+                Account
+              </button>
+              <button ngbDropdownItem (click)="accounts.logout()">
+                Logout
+              </button>
+            </ng-container>
           </div>
         </div>
-        <button *ngIf="data.selectedComparison.length > 0" class="btn btn-secondary p-2" (click)="openProfileCompare()">
-          Profile Compare ({{data.selectedComparison.length}})
-        </button>
-        <div class="p-2">
-          <input class="form-control" type="text" placeholder="Quick Navigation of Selected Data" width="300" [ngbTypeahead]="data.searchLimited" [(ngModel)]="filterModel">
-        </div>
-        <div class="p-2">
-          <select class="form-control" [(ngModel)]="data.searchType">
-            <option value="Gene Names">
-              Gene Names
-            </option>
-            <option value="Primary IDs">
-              Primary IDs
-            </option>
-          </select>
-        </div>
-        <div class="p-2">
-          <button class="btn btn-primary" (click)="scrollTo()">Go to</button>
-        </div>
       </div>
-    </ng-container>
+      <button *ngIf="data.selectedComparison.length > 0" class="btn btn-secondary p-2" (click)="openProfileCompare()">
+        Profile Compare ({{data.selectedComparison.length}})
+      </button>
+      <!--<div class="p-2">
+        <input class="form-control" type="text" placeholder="Quick Navigation of Selected Data" width="300" [ngbTypeahead]="data.searchLimited" [(ngModel)]="filterModel">
+      </div>
+      <div class="p-2">
+        <select class="form-control" [(ngModel)]="data.searchType">
+          <option value="Gene Names">
+            Gene Names
+          </option>
+          <option value="Primary IDs">
+            Primary IDs
+          </option>
+        </select>
+      </div>
+      <div class="p-2">
+        <button class="btn btn-primary" (click)="scrollTo()">Go to</button>
+      </div>-->
+    </div>
   </div>
 </nav>
 

@@ -11,6 +11,7 @@ import {WebService} from "../../web.service";
 import {
   VolcanoPlotTextAnnotationComponent
 } from "../volcano-plot-text-annotation/volcano-plot-text-annotation.component";
+import {ToastService} from "../../toast.service";
 
 @Component({
   selector: 'app-volcano-plot',
@@ -20,11 +21,11 @@ import {
 export class VolcanoPlotComponent implements OnInit {
   @Output() selected: EventEmitter<selectionData> = new EventEmitter<selectionData>()
   _data: any;
-  nameToID: any = {}
+  //nameToID: any = {}
   graphData: any[] = []
   graphLayout: any = {
-    height: 700, width: 700, xaxis: {title: "Log2FC"},
-    yaxis: {title: "-log10(p-value)"},
+    height: 700, width: 700, xaxis: {title: "<b>Log2FC</b>"},
+    yaxis: {title: "<b>-log10(p-value)</b>"},
     annotations: [],
     showlegend: true, legend: {
       orientation: 'h'
@@ -36,7 +37,16 @@ export class VolcanoPlotComponent implements OnInit {
       },
     }
   }
-
+  config: any = {
+    //modeBarButtonsToRemove: ["toImage"]
+    toImageButtonOptions: {
+      format: 'svg',
+      filename: this.graphLayout.title.text,
+      height: this.graphLayout.height,
+      width: this.graphLayout.width,
+      scale: 1
+    }
+  }
   layoutMaxMin: any = {
     xMin: 0, xMax: 0, yMin: 0, yMax: 0
   }
@@ -46,15 +56,26 @@ export class VolcanoPlotComponent implements OnInit {
 
   @Input() set data(value: IDataFrame) {
     this._data = value
-    console.log(value)
     if (this._data.count()) {
-      this.drawVolcano();
+      this.messageService.show("Volcano plot", "Drawing volcano plot. This may take a while.").then(
+        () => {
+          this.drawVolcano()
+        }
+      )
     }
   }
 
   breakColor: boolean = false
+  currentPosition = 0
+  currentLegend: string[] = []
 
+  markerSize: number = 10
   drawVolcano() {
+    this.currentPosition = 0
+    this.settings.settings.scatterPlotMarkerSize = this.markerSize
+    if (!this.settings.settings.visible) {
+      this.settings.settings.visible = {}
+    }
     this.graphLayout.title.text = this.settings.settings.volcanoPlotTitle
     let currentColors: string[] = []
     if (this.settings.settings.colorMap) {
@@ -62,7 +83,7 @@ export class VolcanoPlotComponent implements OnInit {
     } else {
       this.settings.settings.colorMap = {}
     }
-    let currentPosition = 0
+
     let fdrCurve: IDataFrame = new DataFrame()
     if (this.settings.settings.fdrCurveTextEnable) {
       if (this.settings.settings.fdrCurveText !== "") {
@@ -75,34 +96,37 @@ export class VolcanoPlotComponent implements OnInit {
       if (!this.settings.settings.colorMap[s]) {
         while (true) {
           if (this.breakColor) {
-            this.settings.settings.colorMap[s] = this.dataService.defaultColorList[currentPosition]
+            this.settings.settings.colorMap[s] = this.settings.settings.defaultColorList[this.currentPosition]
             break
           }
-          if (currentColors.indexOf(this.dataService.defaultColorList[currentPosition]) !== -1) {
-            currentPosition ++
-          } else if (currentPosition !== this.dataService.defaultColorList.length) {
-            this.settings.settings.colorMap[s] = this.dataService.defaultColorList[currentPosition]
+          if (currentColors.indexOf(this.settings.settings.defaultColorList[this.currentPosition]) !== -1) {
+            this.currentPosition ++
+          } else if (this.currentPosition !== this.settings.settings.defaultColorList.length) {
+            this.settings.settings.colorMap[s] = this.settings.settings.defaultColorList[this.currentPosition]
             break
           } else {
             this.breakColor = true
-            currentPosition = 0
+            this.currentPosition = 0
           }
         }
 
-        currentPosition ++
-        if (currentPosition === this.dataService.defaultColorList.length) {
-          currentPosition = 0
+        this.currentPosition ++
+        if (this.currentPosition === this.settings.settings.defaultColorList.length) {
+          this.currentPosition = 0
         }
       }
       temp[s] = {
         x: [],
         y: [],
         text: [],
-        type: "scattergl",
+        primaryIDs: [],
+        //type: "scattergl",
+        type: "scatter",
         mode: "markers",
         name: s,
         marker: {
-          color: this.settings.settings.colorMap[s]
+          color: this.settings.settings.colorMap[s],
+          size: this.settings.settings.scatterPlotMarkerSize
         }
       }
     }
@@ -134,7 +158,9 @@ export class VolcanoPlotComponent implements OnInit {
       x:[],
       y:[],
       text: [],
-      type: "scattergl",
+      primaryIDs: [],
+      //type: "scattergl",
+      type: "scatter",
       mode: "markers",
       name: "Background"
     }
@@ -142,24 +168,26 @@ export class VolcanoPlotComponent implements OnInit {
       temp["Background"]["marker"] = {
         color: "#a4a2a2",
         opacity: 0.3,
+        size: this.settings.settings.scatterPlotMarkerSize
       }
     }
+
 
     for (const r of this._data) {
       let geneNames = ""
       const x = r[this.dataService.differentialForm.foldChange]
       const y = r[this.dataService.differentialForm.significant]
       let primaryID = r[this.dataService.differentialForm.primaryIDs]
-      if (primaryID === "P52850") {
-        console.log(this.uniprot.getUniprotFromPrimary(primaryID))
-      }
+      //if (primaryID === "P52850") {
+        //console.log(this.uniprot.getUniprotFromPrimary(primaryID))
+      //}
       let uniquePrimaryID = ""
       if (this.dataService.differentialForm.comparisonSelect.length > 1) {
         uniquePrimaryID = r["UniquePrimaryIDs"]
       }
       let text = primaryID
       if (this.dataService.fetchUniprot) {
-        const rd = this.uniprot.getUniprotFromPrimary(primaryID)
+        const rd: any = this.uniprot.getUniprotFromPrimary(primaryID)
         if (rd) {
           geneNames = rd["Gene Names"]
         }
@@ -171,36 +199,38 @@ export class VolcanoPlotComponent implements OnInit {
       if (geneNames !== "") {
         text = geneNames + "[" + primaryID + "]" + " (" + r[this.dataService.differentialForm.comparison] + ")"
       }
-      this.nameToID[text] = primaryID
+      //this.nameToID[text] = primaryID
 
       if (this.dataService.selectedMap[primaryID]) {
         for (const o in this.dataService.selectedMap[primaryID]) {
-          const match = /\((.+)\)$/.exec(o)
+          const match = /\(([^)]*)\)[^(]*$/.exec(o)
           if (match) {
             if (match[1] === r[this.dataService.differentialForm.comparison]) {
-              console.log(x, y)
               temp[o].x.push(x)
               temp[o].y.push(y)
               temp[o].text.push(text)
+              temp[o].primaryIDs.push(primaryID)
             }
           } else {
             temp[o].x.push(x)
             temp[o].y.push(y)
             temp[o].text.push(text)
+            temp[o].primaryIDs.push(primaryID)
           }
         }
       } else if (this.settings.settings.backGroundColorGrey) {
         temp["Background"].x.push(x)
         temp["Background"].y.push(y)
         temp["Background"].text.push(text)
+        temp["Background"].primaryIDs.push(primaryID)
       } else {
         let group = this.dataService.significantGroup(x, y) + " (" + r[this.dataService.differentialForm.comparison] + ")"
         if (!temp[group]) {
           if (!this.settings.settings.colorMap[group]) {
-            this.settings.settings.colorMap[group] = this.dataService.defaultColorList[currentPosition]
-            currentPosition ++
-            if (currentPosition === this.dataService.defaultColorList.length) {
-              currentPosition = 0
+            this.settings.settings.colorMap[group] = this.settings.settings.defaultColorList[this.currentPosition]
+            this.currentPosition ++
+            if (this.currentPosition === this.settings.settings.defaultColorList.length) {
+              this.currentPosition = 0
             }
           }
 
@@ -208,10 +238,13 @@ export class VolcanoPlotComponent implements OnInit {
             x: [],
             y: [],
             text: [],
-            type: "scattergl",
+            primaryIDs: [],
+            //type: "scattergl",
+            type: "scatter",
             mode: "markers",
             marker: {
               color: this.settings.settings.colorMap[group],
+              size: this.settings.settings.scatterPlotMarkerSize
             },
             name: group
           }
@@ -219,14 +252,23 @@ export class VolcanoPlotComponent implements OnInit {
         temp[group].x.push(x)
         temp[group].y.push(y)
         temp[group].text.push(text)
+        temp[group].primaryIDs.push(primaryID)
       }
     }
     const graphData: any[] = []
+    this.currentLegend = []
     for (const t in temp) {
       if (temp[t].x.length > 0) {
+        if (this.settings.settings.visible[t]) {
+          temp[t].visible = this.settings.settings.visible[t]
+        } else {
+          temp[t].visible = true
+        }
         graphData.push(temp[t])
+        this.currentLegend.push(t)
       }
     }
+
     if (fdrCurve.count() > 0) {
       if (this.graphLayout.xaxis.range === undefined) {
         this.graphLayout.xaxis.range = [this.layoutMaxMin.xMin - 0.5, this.layoutMaxMin.xMax + 0.5]
@@ -339,17 +381,30 @@ export class VolcanoPlotComponent implements OnInit {
     this.graphLayout.annotations = []
     console.log(this.settings.settings.textAnnotation)
     for (const i in this.settings.settings.textAnnotation) {
-      this.annotated[this.settings.settings.textAnnotation[i].title] = this.settings.settings.textAnnotation[i].data
-      this.graphLayout.annotations.push(this.settings.settings.textAnnotation[i].data)
+      if (this.settings.settings.textAnnotation[i].showannotation === true) {
+        this.annotated[this.settings.settings.textAnnotation[i].title] = this.settings.settings.textAnnotation[i].data
+        this.graphLayout.annotations.push(this.settings.settings.textAnnotation[i].data)
+      }
+
     }
+    this.messageService.show("Volcano Plot", "Finished drawing volcano plot")
     //this.removeAnnotatedDataPoints([])
   }
 
-  constructor(private web: WebService, private dataService: DataService, private uniprot: UniprotService, public settings: SettingsService, private modal: NgbModal) {
-    this.annotated = this.dataService.annotatedData
+  constructor(private web: WebService, private dataService: DataService, private uniprot: UniprotService, public settings: SettingsService, private modal: NgbModal, private messageService: ToastService) {
+    this.annotated = {}
+    for (const i in this.settings.settings.textAnnotation) {
+      if (this.settings.settings.textAnnotation[i].showannotation === undefined || this.settings.settings.textAnnotation[i].showannotation === null) {
+        this.settings.settings.textAnnotation[i].showannotation = true
+      }
+      this.annotated[i] = this.settings.settings.textAnnotation[i]
+    }
+
+    this.markerSize = this.settings.settings.scatterPlotMarkerSize
     this.dataService.selectionUpdateTrigger.asObservable().subscribe(data => {
       if (data) {
-        if (this.dataService.annotatedData === {}) {
+
+        if (Object.keys(this.dataService.annotatedData).length === 0) {
           this.annotated = {}
         }
         this.drawVolcano()
@@ -357,12 +412,30 @@ export class VolcanoPlotComponent implements OnInit {
     })
     this.dataService.annotationService.asObservable().subscribe(data => {
       if (data) {
+        console.log(data)
         if (data.remove) {
-          this.removeAnnotatedDataPoints([data.id])
+          if (typeof data.id === "string") {
+            this.removeAnnotatedDataPoints([data.id]).then(() => {
+              this.dataService.annotatedData = this.annotated
+            })
+          } else {
+            this.removeAnnotatedDataPoints(data.id).then(() => {
+              this.dataService.annotatedData = this.annotated
+            })
+          }
+
         } else {
-          this.annotateDataPoints([data.id])
+          if (typeof data.id === "string") {
+            this.annotateDataPoints([data.id]).then(() => {
+              this.dataService.annotatedData = this.annotated
+            })
+          } else {
+            this.annotateDataPoints(data.id).then(() => {
+              this.dataService.annotatedData = this.annotated
+            })
+          }
+
         }
-        this.dataService.annotatedData = this.annotated
       }
     })
   }
@@ -371,14 +444,12 @@ export class VolcanoPlotComponent implements OnInit {
   }
 
   selectData(e: any) {
-    console.log(e)
     if ("points" in e) {
       const selected: string[] = []
       for (const p of e["points"]) {
-        if (this.nameToID[p.text] !== "") {
-          selected.push(this.nameToID[p.text])
-        }
+        selected.push(p.data.primaryIDs[p.pointNumber])
       }
+      console.log(selected)
       if (selected.length === 1) {
         this.selected.emit(
           {
@@ -387,14 +458,15 @@ export class VolcanoPlotComponent implements OnInit {
           }
         )
       } else {
-        this.selected.emit(
-          {
-            data: selected,
-            title: "Selected " + selected.length + " genes."
-          }
-        )
+        if (selected.length !== 0) {
+          this.selected.emit(
+            {
+              data: selected,
+              title: "Selected " + selected.length + " genes." + "(Selection #" + (this.dataService.selectOperationNames.length+1) + ")"
+            }
+          )
+        }
       }
-
     }
   }
 
@@ -403,15 +475,16 @@ export class VolcanoPlotComponent implements OnInit {
   }
 
   openCustomColor() {
-    this.modal.open(VolcanoColorsComponent)
+    const ref = this.modal.open(VolcanoColorsComponent)
+    ref.componentInstance.data = this.currentLegend
   }
 
-  annotateDataPoints(data: string[]) {
+  async annotateDataPoints(data: string[]) {
     const annotations: any[] = []
     const annotatedData = this.dataService.currentDF.where(r => data.includes(r[this.dataService.differentialForm.primaryIDs])).bake()
     for (const a of annotatedData) {
       let title = a[this.dataService.differentialForm.primaryIDs]
-      const uni = this.uniprot.getUniprotFromPrimary(title)
+      const uni: any = this.uniprot.getUniprotFromPrimary(title)
       if (uni) {
         if (uni["Gene Names"] !== "") {
           title = uni["Gene Names"] + "(" + title + ")"
@@ -445,22 +518,19 @@ export class VolcanoPlotComponent implements OnInit {
             title: title
           }
         }
-        console.log(this.settings.settings.textAnnotation)
-
         annotations.push(ann)
         this.annotated[title] = ann
       }
     }
-
     if (annotations.length > 0) {
       this.graphLayout.annotations = this.graphLayout.annotations.concat(annotations)
     }
   }
 
-  removeAnnotatedDataPoints(data: string[]) {
+  async removeAnnotatedDataPoints(data: string[]) {
     for (const d of data) {
       let title = d
-      const uni = this.uniprot.getUniprotFromPrimary(title)
+      const uni: any = this.uniprot.getUniprotFromPrimary(title)
 
       if (uni) {
         if (uni["Gene Names"] !== "") {
@@ -469,6 +539,7 @@ export class VolcanoPlotComponent implements OnInit {
       }
       if (this.annotated[title]) {
         delete this.annotated[title]
+        delete this.settings.settings.textAnnotation[title]
       }
     }
     this.graphLayout.annotations = Object.values(this.annotated)
@@ -479,15 +550,34 @@ export class VolcanoPlotComponent implements OnInit {
   }
 
   openTextEditor() {
-    const ref = this.modal.open(VolcanoPlotTextAnnotationComponent, {size: "xl"})
+    const ref = this.modal.open(VolcanoPlotTextAnnotationComponent, {size: "xl", scrollable: true})
     ref.closed.subscribe(data => {
       this.graphLayout.annotations = []
       this.annotated = {}
-      for (const a of data) {
-        this.settings.settings.textAnnotation[a.title] = a
-        this.annotated[a.title] = a.data
-        this.graphLayout.annotations.push(this.annotated[a.title])
+      for (const f of data) {
+        console.log(f)
+        this.settings.settings.textAnnotation[f.value.annotationID].data.showarrow = f.value.showarrow
+        this.settings.settings.textAnnotation[f.value.annotationID].data.arrowhead = f.value.arrowhead
+        this.settings.settings.textAnnotation[f.value.annotationID].data.arrowsize = f.value.arrowsize
+        this.settings.settings.textAnnotation[f.value.annotationID].data.arrowwidth = f.value.arrowwidth
+        this.settings.settings.textAnnotation[f.value.annotationID].data.ax = f.value.ax
+        this.settings.settings.textAnnotation[f.value.annotationID].data.ay = f.value.ay
+        this.settings.settings.textAnnotation[f.value.annotationID].data.font.size = f.value.fontsize
+        this.settings.settings.textAnnotation[f.value.annotationID].data.font.color = f.value.fontcolor
+        this.settings.settings.textAnnotation[f.value.annotationID].data.text = f.value.text
+        this.settings.settings.textAnnotation[f.value.annotationID].showannotation = f.value.showannotation
+        this.annotated[f.value.annotationID] = this.settings.settings.textAnnotation[f.value.annotationID].data
+        this.graphLayout.annotations.push(this.annotated[f.value.annotationID])
+
       }
     })
+  }
+
+  legendClickHandler(event: any) {
+    if (event.event.srcElement.__data__[0].trace.visible === "legendonly") {
+      this.settings.settings.visible[event.event.srcElement.__data__[0].trace.name] = true
+    } else {
+      this.settings.settings.visible[event.event.srcElement.__data__[0].trace.name] = "legendonly"
+    }
   }
 }

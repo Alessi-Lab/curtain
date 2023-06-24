@@ -6,6 +6,7 @@ import {PlotlyService} from "angular-plotly.js";
 import {WebService} from "../../web.service";
 import {StatsService} from "../../stats.service";
 import {SettingsService} from "../../settings.service";
+import {Subject} from "rxjs";
 
 @Component({
   selector: 'app-bar-chart',
@@ -22,10 +23,13 @@ export class BarChartComponent implements OnInit {
   testType: string = "ANOVA"
   selectedConditions: string[] = []
   barChartErrorType: string = "Standard Error"
+
   @Input() set data(value: any) {
     this._data = value
     this.title = "<b>" + this._data[this.dataService.rawForm.primaryIDs] + "</b>"
+
     this.uni = this.uniprot.getUniprotFromPrimary(this._data[this.dataService.rawForm.primaryIDs])
+
     if (this.uni) {
       if (this.uni["Gene Names"] !== "") {
         this.title = "<b>" + this.uni["Gene Names"] + "(" + this._data[this.dataService.rawForm.primaryIDs] + ")" + "</b>"
@@ -36,7 +40,9 @@ export class BarChartComponent implements OnInit {
     this.graphLayoutAverage["title"] = this.title
     this.graphLayoutViolin["title"] = this.title
     this.drawAverageBarChart()
+
   }
+
   title = ""
   graph: any = {}
   graphData: any[] = []
@@ -97,7 +103,68 @@ export class BarChartComponent implements OnInit {
     },
     margin: {r: 40, l: 40, b: 120, t: 100}
   }
+  config: any = {
+    //modeBarButtonsToRemove: ["toImage"]
+    toImageButtonOptions: {
+      format: 'svg',
+      filename: this.title+'_bar',
+      height: this.graphLayout.height,
+      width: this.graphLayout.width,
+      scale: 1
+    }
+  }
+  configAverage: any = {
+    //modeBarButtonsToRemove: ["toImage"]
+    toImageButtonOptions: {
+      format: 'svg',
+      filename: this.title + '_average',
+      height: this.graphLayoutAverage.height,
+      width: this.graphLayoutAverage.width,
+      scale: 1
+    }
+  }
+  configViolin: any = {
+    //modeBarButtonsToRemove: ["toImage"]
+    toImageButtonOptions: {
+      format: 'svg',
+      filename: this.title + '_violin',
+      height: this.graphLayoutViolin.height,
+      width: this.graphLayoutViolin.width,
+      scale: 1
+    }
+  }
+
   constructor(private stats: StatsService, private web: WebService, public dataService: DataService, private uniprot: UniprotService, private settings: SettingsService) {
+    this.dataService.externalBarChartDownloadTrigger.asObservable().subscribe(trigger => {
+      if (trigger) {
+        for (const i of ["bar", "average", "violin"]) {
+          let e = document.getElementById(this._data[this.dataService.rawForm.primaryIDs]+i)
+          if (e) {
+            this.web.downloadPlotlyImage('svg', this._data[this.dataService.rawForm.primaryIDs]+this.uni["Gene Names"]+i+'.svg', this._data[this.dataService.rawForm.primaryIDs]+i).then()
+          } else {
+            let observer = new MutationObserver(mutations => {
+              mutations.forEach((mutation) => {
+                let nodes = Array.from(mutation.addedNodes)
+                for (const node of nodes) {
+                  if (node.contains(document.getElementById(this._data[this.dataService.rawForm.primaryIDs]+i))) {
+                    e = document.getElementById(this._data[this.dataService.rawForm.primaryIDs]+i)
+                    if (e) {
+                      this.web.downloadPlotlyImage('svg', this._data[this.dataService.rawForm.primaryIDs]+this.uni["Gene Names"]+i+'.svg', this._data[this.dataService.rawForm.primaryIDs]+i).then()
+                    }
+                    observer.disconnect()
+                    break
+                  }
+                }
+              })
+            })
+            observer.observe(document.documentElement, {
+              childList: true,
+              subtree: true
+            })
+          }
+        }
+      }
+    })
     this.dataService.finishedProcessingData.subscribe(data => {
       if (data) {
 
@@ -112,7 +179,14 @@ export class BarChartComponent implements OnInit {
   }
 
   download(type: string) {
-    this.web.downloadPlotlyImage('svg', type+'.svg', this._data[this.dataService.rawForm.primaryIDs]+type).then()
+    if (type === "all") {
+      this.web.downloadPlotlyImage('svg', 'bar.svg', this._data[this.dataService.rawForm.primaryIDs]+"bar").then()
+      this.web.downloadPlotlyImage('svg', 'average.svg', this._data[this.dataService.rawForm.primaryIDs]+"average").then()
+      this.web.downloadPlotlyImage('svg', 'violin.svg', this._data[this.dataService.rawForm.primaryIDs]+"violin").then()
+    } else {
+      this.web.downloadPlotlyImage('svg', type+'.svg', this._data[this.dataService.rawForm.primaryIDs]+type).then()
+    }
+
   }
 
   ngOnInit(): void {
@@ -126,6 +200,8 @@ export class BarChartComponent implements OnInit {
     const annotations: any[] = []
     const shapes: any[] = []
     let sampleNumber: number = 0
+    console.log(this.settings.settings.barchartColorMap)
+
     for (const s in this.dataService.sampleMap) {
 
       if (this.settings.settings.sampleVisible[s]) {
