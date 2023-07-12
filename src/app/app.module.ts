@@ -51,6 +51,14 @@ import {AccountsModule} from "./accounts/accounts.module";
 import { DefaultColorPaletteComponent } from './components/default-color-palette/default-color-palette.component';
 import { DataSelectionManagementComponent } from './components/data-selection-management/data-selection-management.component';
 import { SessionExpiredModalComponent } from './components/session-expired-modal/session-expired-modal.component';
+import { QrcodeModalComponent } from './components/qrcode-modal/qrcode-modal.component';
+import {NgxQRCodeModule} from "@techiediaries/ngx-qrcode";
+import { CollaborateModalComponent } from './components/collaborate-modal/collaborate-modal.component';
+import { SideFloatControlComponent } from './components/side-float-control/side-float-control.component';
+import { DraggableElementComponent } from './components/draggable-element/draggable-element.component';
+import { RankPlotTextAnnotationComponent } from './components/rank-plot-text-annotation/rank-plot-text-annotation.component';
+import { SelectedDataDistributionPlotComponent } from './components/selected-data-distribution-plot/selected-data-distribution-plot.component';
+import { LocalSessionStateModalComponent } from './components/local-session-state-modal/local-session-state-modal.component';
 PlotlyModule.plotlyjs = PlotlyJS;
 @NgModule({
   declarations: [
@@ -92,20 +100,28 @@ PlotlyModule.plotlyjs = PlotlyJS;
     DefaultColorPaletteComponent,
     DataSelectionManagementComponent,
     SessionExpiredModalComponent,
+    QrcodeModalComponent,
+    CollaborateModalComponent,
+    SideFloatControlComponent,
+    DraggableElementComponent,
+    RankPlotTextAnnotationComponent,
+    SelectedDataDistributionPlotComponent,
+    LocalSessionStateModalComponent,
   ],
-    imports: [
-      BrowserModule,
-      AppRoutingModule,
-      NgbModule,
-      FormsModule,
-      HttpClientModule,
-      PlotlyModule,
-      ReactiveFormsModule,
-      ColorPickerModule,
-      QuillModule.forRoot(),
-      AccountsModule,
-      NgxPrintModule
-    ],
+  imports: [
+    BrowserModule,
+    AppRoutingModule,
+    NgbModule,
+    FormsModule,
+    HttpClientModule,
+    PlotlyModule,
+    ReactiveFormsModule,
+    ColorPickerModule,
+    QuillModule.forRoot(),
+    AccountsModule,
+    NgxPrintModule,
+    NgxQRCodeModule
+  ],
   providers: [HttpClient,
   ],
   bootstrap: [AppComponent]

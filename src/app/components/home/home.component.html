@@ -1,12 +1,33 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top d-lex flex-wrap">
   <div class="container-fluid">
     <b style="padding-left: 4px" class="text-dark"><a class="navbar-brand" href="#">Curtain</a></b>
-    <ng-container *ngIf="finished">
-      <a *ngIf="uniqueLink !== ''" href="{{uniqueLink}}" class="ml-2 text-success">{{uniqueLink}}</a>
+    <ng-container *ngIf="finished && settings.settings.currentID !== ''">
+      <div class="d-flex">
+        <div class="p-2">
+          <a *ngIf="uniqueLink !== ''" href="{{uniqueLink}}" class="ml-2 text-success">{{uniqueLink}}</a>
+        </div>
+        <div class="p-2">
+          <span class="badge bg-info" (click)="copyToClipboard(uniqueLink)"><i class="bi bi-clipboard"></i></span>
+        </div>
+        <div class="p-2">
+          <span class="badge bg-warning" (click)="openQRCode()">QR Code</span>
+        </div>
+
+      </div>
 
     </ng-container>
 
     <div class="d-flex">
+      <div class="p-2" *ngIf="finished">
+        <div display="dynamic" ngbDropdown class="d-inline-block">
+          <button class="btn btn-outline-primary ml-2" id="localState" ngbDropdownToggle> State
+          </button>
+          <div ngbDropdownMenu aria-labelledby="localState">
+            <button ngbDropdownItem (click)="saveLocalState()">Create local state</button>
+            <button ngbDropdownItem (click)="openStateModal()">State Management</button>
+          </div>
+        </div>
+      </div>
       <div class="p-2">
 
         <div display="dynamic" ngbDropdown class="d-inline-block">
@@ -24,6 +45,8 @@
               <button ngbDropdownItem (click)="web.downloadFile('different.txt', data.differential.originalFile)">Download Differential Analysis File</button>
               <button ngbDropdownItem (click)="web.downloadFile('raw.txt', data.raw.originalFile)">Download Raw File</button>
               <button ngbDropdownItem (click)="openAnnotation()">Project Annotation</button>
+<!--              <button ngbDropdownItem (click)="openQRCode()" *ngIf="settings.settings.currentID !== ''">Session QR Code</button>-->
+              <button ngbDropdownItem *ngIf="data.selectOperationNames.length > 0" (click)="openSelectedDataDistributionModal()">Fold Change Distribution</button>
               <button ngbDropdownItem (click)="openCorrelationMatrix()">
                 Correlation Matrix
               </button>
@@ -48,6 +71,9 @@
             </button>
             <button ngbDropdownItem (click)="openSessionSettings()" [disabled]="!accounts.getSessionPermission()">
               Session Settings
+            </button>
+            <button ngbDropdownItem (click)="openCollaborateModal()">
+              Collaborate
             </button>
             <ng-container *ngIf="accounts.curtainAPI.user.loginStatus">
               <button ngbDropdownItem (click)="openAccountModal()">
@@ -145,3 +171,4 @@
 
 </div>
 
+<app-side-float-control (searchChatSelection)="handleSearch($event)"></app-side-float-control>

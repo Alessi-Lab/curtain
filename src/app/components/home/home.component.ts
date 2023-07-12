@@ -26,6 +26,14 @@ import {AccountsComponent} from "../../accounts/accounts/accounts.component";
 import {reviver, User} from "curtain-web-api";
 import {DefaultColorPaletteComponent} from "../default-color-palette/default-color-palette.component";
 import {DataSelectionManagementComponent} from "../data-selection-management/data-selection-management.component";
+import {QrcodeModalComponent} from "../qrcode-modal/qrcode-modal.component";
+import {WebsocketService} from "../../websocket.service";
+import {CollaborateModalComponent} from "../collaborate-modal/collaborate-modal.component";
+import {
+  SelectedDataDistributionPlotComponent
+} from "../selected-data-distribution-plot/selected-data-distribution-plot.component";
+import {SaveStateService} from "../../save-state.service";
+import {LocalSessionStateModalComponent} from "../local-session-state-modal/local-session-state-modal.component";
 
 @Component({
   selector: 'app-home',
@@ -39,7 +47,7 @@ export class HomeComponent implements OnInit {
   filterModel: string = ""
   currentID: string = ""
 
-  constructor(public accounts: AccountsService, private toast: ToastService, private modal: NgbModal, private route: ActivatedRoute, public data: DataService, private settings: SettingsService, public web: WebService, private uniprot: UniprotService, private scroll: ScrollService) {
+  constructor(private saveState: SaveStateService, private ws: WebsocketService, public accounts: AccountsService, private toast: ToastService, private modal: NgbModal, private route: ActivatedRoute, public data: DataService, public settings: SettingsService, public web: WebService, private uniprot: UniprotService, private scroll: ScrollService) {
     // if (location.protocol === "https:" && location.hostname === "curtainptm.proteo.info") {
     //   this.toast.show("Initialization", "Error: The webpage requires the url protocol to be http instead of https")
     // }
@@ -55,22 +63,32 @@ export class HomeComponent implements OnInit {
               const settings = params["settings"].split("&")
               let token: string = ""
               if (settings.length > 1) {
-                token = settings[1]
-                this.data.tempLink = true
-              } else {
-                this.data.tempLink = false
+                if (settings[1] !== "") {
+                  token = settings[1]
+                  this.data.tempLink = true
+                } else {
+                  this.data.tempLink = false
+                }
+
+                if (settings.length > 2 && settings[2] !== "") {
+                  this.ws.sessionID = settings[2]
+                  this.ws.reconnect()
+                }
               }
+
               this.toast.show("Initialization", "Fetching data from session " + settings[0]).then()
               if (this.currentID !== settings[0]) {
                 this.currentID = settings[0]
+
                 this.accounts.curtainAPI.getSessionSettings(settings[0]).then((d:any)=> {
                   this.data.session = d.data
-                  this.accounts.curtainAPI.postSettings(settings[0], token).then((data:any) => {
+                  this.accounts.curtainAPI.postSettings(settings[0], token, this.onDownloadProgress).then((data:any) => {
                     if (data.data) {
                       this.restoreSettings(data.data).then(result => {
                         this.accounts.curtainAPI.getSessionSettings(settings[0]).then((d:any)=> {
                           this.data.session = d.data
                           this.settings.settings.currentID = d.data.link_id
+                          this.uniqueLink = location.origin + "/#/" + this.settings.settings.currentID
                         })
                       })
                       this.accounts.curtainAPI.getOwnership(settings[0]).then((data:any) => {
@@ -112,11 +130,18 @@ export class HomeComponent implements OnInit {
 
 
   ngOnInit(): void {
-
+    this.data.loadDataTrigger.asObservable().subscribe((data: boolean) => {
+      if (data) {
+        this.handleFinish(data)
+        this.data.redrawTrigger.next(true)
+        this.data.selectionUpdateTrigger.next(true)
+      }
+    })
   }
 
   handleFinish(e: boolean) {
     this.finished = e
+    console.log(this.finished)
     if (this.finished) {
       if (this.data.selected.length > 0) {
         this.data.finishedProcessingData.next(e)
@@ -225,15 +250,20 @@ export class HomeComponent implements OnInit {
       fetchUniprot: this.data.fetchUniprot,
       annotatedData: this.data.annotatedData
     }
-    this.accounts.curtainAPI.putSettings(data, !this.accounts.curtainAPI.user.loginStatus, data.settings.description).then((data: any) => {
+    this.accounts.curtainAPI.putSettings(data, !this.accounts.curtainAPI.user.loginStatus, data.settings.description, "TP",  this.onUploadProgress).then((data: any) => {
       if (data.data) {
         this.data.session = data.data
         this.settings.settings.currentID = data.data.link_id
         this.uniqueLink = location.origin + "/#/" + this.settings.settings.currentID
+        this.uniprot.uniprotProgressBar.next({value: 100, text: "Session data saved"})
       }
     }).catch(err => {
       this.toast.show("User information", "Curtain link cannot be saved").then()
     })
+  }
+
+  onUploadProgress = (progressEvent: any) => {
+    this.uniprot.uniprotProgressBar.next({value: progressEvent.progress * 100, text: "Uploading session data at " + Math.round(progressEvent.progress *100) + "%"})
   }
 
   async restoreSettings(object: any) {
@@ -244,6 +274,15 @@ export class HomeComponent implements OnInit {
     console.log(object.settings)
     if (!object.settings.project) {
       object.settings.project = new Project()
+    } else {
+      const p = new Project()
+      for (const key in object.settings.project) {
+        if (object.settings.project.hasOwnProperty(key)) {
+          // @ts-ignore
+          p[key] = object.settings.project[key]
+        }
+      }
+      object.settings.project = p
     }
     if (!object.settings.scatterPlotMarkerSize) {
       object.settings.scatterPlotMarkerSize = 10
@@ -366,14 +405,9 @@ export class HomeComponent implements OnInit {
   }
 
   clearSelections() {
-    this.data.selected = []
-    this.data.selectedGenes = []
-    this.data.selectedMap = {}
-    this.data.selectOperationNames = []
-    this.settings.settings.colorMap = {}
-    this.settings.settings.textAnnotation = {}
+    this.data.clear()
     this.rawFiltered = new DataFrame()
-    this.data.annotatedData = {}
+
     this.data.selectionUpdateTrigger.next(true)
   }
 
@@ -394,7 +428,10 @@ export class HomeComponent implements OnInit {
   openAnnotation() {
     const ref = this.modal.open(SampleAnnotationComponent, {size: "lg"})
     ref.closed.subscribe(data => {
-      this.settings.settings.project = data
+      for (const i in data) {
+        // @ts-ignore
+        this.settings.settings.project[i] = data[i]
+      }
     })
   }
 
@@ -450,6 +487,40 @@ export class HomeComponent implements OnInit {
 
       }
     })
+  }
+
+  openQRCode() {
+    const ref = this.modal.open(QrcodeModalComponent, {size: "sm"})
+    if (this.settings.settings.currentID) {
+      ref.componentInstance.url = location.origin + "/#/" + this.settings.settings.currentID
+    }
+  }
+
+  copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      this.toast.show("Clipboard", "Session link has been copied to clipboard").then()
+    })
+  }
+
+  onDownloadProgress = (progressEvent: any) => {
+    this.uniprot.uniprotProgressBar.next({value: progressEvent.progress *100, text: "Downloading session data at " + Math.round(progressEvent.progress * 100) + "%"})
+  }
+
+  openCollaborateModal() {
+    const ref = this.modal.open(CollaborateModalComponent)
+  }
+
+  openSelectedDataDistributionModal() {
+    const ref = this.modal.open(SelectedDataDistributionPlotComponent, {size: "xl"})
+  }
+
+  saveLocalState() {
+    this.saveState.saveState()
+    this.toast.show("Local state", "A local settings state has been created").then()
+  }
+
+  openStateModal() {
+    const ref = this.modal.open(LocalSessionStateModalComponent, {scrollable: true})
   }
 }
 

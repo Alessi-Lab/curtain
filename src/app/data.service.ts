@@ -11,6 +11,7 @@ import {BehaviorSubject, debounceTime, distinctUntilChanged, map, Observable, Op
   providedIn: 'root'
 })
 export class DataService {
+  loadDataTrigger: Subject<boolean> = new Subject<boolean>()
   externalBarChartDownloadTrigger: Subject<boolean> = new Subject<boolean>()
   session: any = {}
   tempLink: boolean = false
@@ -33,7 +34,7 @@ export class DataService {
   conditions: string[] = []
   dataTestTypes: string[] = [
     "ANOVA",
-    //"TTest"
+    "TTest"
   ]
   redrawTrigger: Subject<boolean> = new Subject()
   annotatedData: any = {}
@@ -187,6 +188,7 @@ export class DataService {
   primaryIDsList: string[] = []
   restoreTrigger: Subject<boolean> = new Subject<boolean>()
   annotationService: Subject<any> = new Subject<any>()
+  searchCommandService: Subject<any> = new Subject<any>()
   constructor(private uniprot: UniprotService, private settings: SettingsService) { }
   minMax: any = {
     fcMin: 0,
@@ -196,6 +198,20 @@ export class DataService {
   }
   page: number = 1
   pageSize: number = 5
+
+
+  clear() {
+    this.selected = []
+    this.selectedGenes = []
+    this.selectedMap = {}
+    this.selectOperationNames = []
+    this.settings.settings.colorMap = {}
+    this.settings.settings.textAnnotation = {}
+    this.settings.settings.barchartColorMap = {}
+    this.settings.settings.rankPlotAnnotation = {}
+    this.settings.settings.rankPlotColorMap = {}
+    this.annotatedData = {}
+  }
 
   significantGroup(x: number, y: number) {
     const ylog = -Math.log10(this.settings.settings.pCutoff)
