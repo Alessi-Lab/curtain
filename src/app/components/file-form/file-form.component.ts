@@ -35,12 +35,12 @@ export class FileFormComponent implements OnInit {
   }
 
   startWork() {
+    this.finished.emit(false)
     if (typeof Worker !== 'undefined') {
       console.log("start worker")
       // Create a new
       const worker = new Worker(new URL('./data.worker', import.meta.url));
       worker.onmessage = (data: MessageEvent<any>) => {
-        console.log(data.data)
         if (data.data) {
           if (data.data.type === "progress") {
             this.updateProgressBar(data.data.value, data.data.text)
@@ -86,17 +86,25 @@ export class FileFormComponent implements OnInit {
                   this.data.primaryIDsMap[n][p] = true
                 }
               }
+
               worker.postMessage({
                 task: 'processRawFile',
                 rawForm: this.data.rawForm,
                 raw: this.data.raw.originalFile,
-                settings: this.settings.settings
+                settings: Object.assign({}, this.settings.settings)
               })
               this.data.raw.df = new DataFrame()
             } else if (data.data.type === "resultRaw") {
+              console.log(data.data.settings.currentID)
               this.data.raw.df = fromJSON(data.data.raw)
               this.data.sampleMap = data.data.sampleMap
-              this.settings.settings = data.data.settings
+              for (const s in this.settings.settings) {
+
+                if (this.settings.settings.hasOwnProperty(s)) {
+                  // @ts-ignore
+                  this.settings.settings[s] = data.data.settings[s]
+                }
+              }
               this.data.conditions = data.data.conditions
               this.data.colorMap = data.data.colorMap
               this.processUniProt()
@@ -241,7 +249,6 @@ export class FileFormComponent implements OnInit {
       }
 
       this.data.currentDF = this.data.currentDF.withSeries("UniquePrimaryIDs", new Series(d)).bake()
-      console.log(this.data.currentDF)
       this.data.primaryIDsList = this.data.currentDF.getSeries(this.data.differentialForm.primaryIDs).distinct().toArray()
       for (const p of this.data.primaryIDsList) {
         if (!this.data.primaryIDsMap[p])  {
@@ -291,69 +298,77 @@ export class FileFormComponent implements OnInit {
   }
 
   processUniProt(){
-    this.uniprot.geneNameToAcc = {}
-
     if (this.data.fetchUniprot) {
-      this.uniprot.uniprotParseStatus.next(false)
-      const accList: string[] = []
-      this.data.dataMap = new Map<string, string>()
-      this.data.genesMap = {}
-      this.uniprot.accMap = new Map<string, string[]>()
-      this.uniprot.dataMap = new Map<string, any>()
-      for (const r of this.data.raw.df) {
-        const a = r[this.data.rawForm.primaryIDs]
+      if (!this.data.bypassUniProt) {
+        this.uniprot.geneNameToAcc = {}
+        this.uniprot.uniprotParseStatus.next(false)
+        const accList: string[] = []
+        this.data.dataMap = new Map<string, string>()
+        this.data.genesMap = {}
+        this.uniprot.accMap = new Map<string, string[]>()
+        this.uniprot.dataMap = new Map<string, any>()
+        for (const r of this.data.raw.df) {
+          const a = r[this.data.rawForm.primaryIDs]
 
-        this.data.dataMap.set(a, r[this.data.rawForm.primaryIDs])
-        this.data.dataMap.set(r[this.data.rawForm.primaryIDs], a)
-        const d = a.split(";")
-        const accession = this.uniprot.Re.exec(d[0])
-        if (accession) {
-          if (this.uniprot.accMap.has(a)) {
-            const al = this.uniprot.accMap.get(a)
-            if (al) {
-              if (!al.includes(accession[1])) {
-                al.push(accession[1])
-                this.uniprot.accMap.set(a, al)
+          this.data.dataMap.set(a, r[this.data.rawForm.primaryIDs])
+          this.data.dataMap.set(r[this.data.rawForm.primaryIDs], a)
+          const d = a.split(";")
+          const accession = this.uniprot.Re.exec(d[0])
+          if (accession) {
+            if (this.uniprot.accMap.has(a)) {
+              const al = this.uniprot.accMap.get(a)
+              if (al) {
+                if (!al.includes(accession[1])) {
+                  al.push(accession[1])
+                  this.uniprot.accMap.set(a, al)
+                }
               }
+            } else {
+              this.uniprot.accMap.set(a, [accession[1]])
             }
-          } else {
-            this.uniprot.accMap.set(a, [accession[1]])
-          }
-          if (this.uniprot.accMap.has(accession[1])) {
-            const al = this.uniprot.accMap.get(accession[1])
-            if (al) {
-              if (!al.includes(a)) {
-                al.push(a)
-                this.uniprot.accMap.set(accession[1], al)
+            if (this.uniprot.accMap.has(accession[1])) {
+              const al = this.uniprot.accMap.get(accession[1])
+              if (al) {
+                if (!al.includes(a)) {
+                  al.push(a)
+                  this.uniprot.accMap.set(accession[1], al)
+                }
               }
+            } else {
+              this.uniprot.accMap.set(accession[1], [a])
             }
-          } else {
-            this.uniprot.accMap.set(accession[1], [a])
-          }
 
-          if (!this.uniprot.dataMap.has(accession[1])) {
-            accList.push(accession[1])
+            if (!this.uniprot.dataMap.has(accession[1])) {
+              accList.push(accession[1])
+            }
           }
         }
-      }
-      if (accList.length > 0) {
-        this.toast.show("UniProt", "Building local UniProt database. This may take a few minutes.").then(() => {
-          this.uniprot.db = new Map<string, any>()
-          this.createUniprotDatabase(accList).then((allGenes) => {
-            this.toast.show("UniProt", "Finished building local UniProt database. " + allGenes.length + " genes found.")
-            this.data.allGenes = allGenes
-            this.finished.emit(true)
-            this.clicked = false
-            this.uniprot.uniprotParseStatus.next(false)
-            this.updateProgressBar(100, "Finished")
-          });
-        })
+        if (accList.length > 0) {
+          this.toast.show("UniProt", "Building local UniProt database. This may take a few minutes.").then(() => {
+            this.uniprot.db = new Map<string, any>()
+            this.createUniprotDatabase(accList).then((allGenes) => {
+              this.toast.show("UniProt", "Finished building local UniProt database. " + allGenes.length + " genes found.")
+              this.data.allGenes = allGenes
+              this.finished.emit(true)
+              this.clicked = false
+              this.uniprot.uniprotParseStatus.next(false)
+              this.updateProgressBar(100, "Finished")
+            });
+          })
+        } else {
+          this.finished.emit(true)
+          this.clicked = false
+          this.updateProgressBar(100, "Finished")
+        }
       } else {
         this.finished.emit(true)
         this.clicked = false
+        this.data.bypassUniProt = false
         this.updateProgressBar(100, "Finished")
       }
+
     } else {
+      this.uniprot.geneNameToAcc = {}
       if (this.data.differentialForm.geneNames !== "") {
         for (const r of this.data.differential.df) {
           if (r[this.data.differentialForm.geneNames] !== "") {
@@ -383,7 +398,6 @@ export class FileFormComponent implements OnInit {
       this.clicked = false
       this.updateProgressBar(100, "Finished")
     }
-
   }
 
   private async createUniprotDatabase(accList: string[]) {

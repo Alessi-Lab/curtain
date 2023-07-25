@@ -23,7 +23,7 @@ import {LoginModalComponent} from "../../accounts/login-modal/login-modal.compon
 import {AccountsService} from "../../accounts/accounts.service";
 import {SessionSettingsComponent} from "../session-settings/session-settings.component";
 import {AccountsComponent} from "../../accounts/accounts/accounts.component";
-import {reviver, User} from "curtain-web-api";
+import {reviver, replacer, User} from "curtain-web-api";
 import {DefaultColorPaletteComponent} from "../default-color-palette/default-color-palette.component";
 import {DataSelectionManagementComponent} from "../data-selection-management/data-selection-management.component";
 import {QrcodeModalComponent} from "../qrcode-modal/qrcode-modal.component";
@@ -34,6 +34,7 @@ import {
 } from "../selected-data-distribution-plot/selected-data-distribution-plot.component";
 import {SaveStateService} from "../../save-state.service";
 import {LocalSessionStateModalComponent} from "../local-session-state-modal/local-session-state-modal.component";
+import {Subscription} from "rxjs";
 
 @Component({
   selector: 'app-home',
@@ -46,7 +47,8 @@ export class HomeComponent implements OnInit {
   uniqueLink: string = ""
   filterModel: string = ""
   currentID: string = ""
-
+  subscription: Subscription = new Subscription()
+  progressEvent: any = {}
   constructor(private saveState: SaveStateService, private ws: WebsocketService, public accounts: AccountsService, private toast: ToastService, private modal: NgbModal, private route: ActivatedRoute, public data: DataService, public settings: SettingsService, public web: WebService, private uniprot: UniprotService, private scroll: ScrollService) {
     // if (location.protocol === "https:" && location.hostname === "curtainptm.proteo.info") {
     //   this.toast.show("Initialization", "Error: The webpage requires the url protocol to be http instead of https")
@@ -71,8 +73,9 @@ export class HomeComponent implements OnInit {
                 }
 
                 if (settings.length > 2 && settings[2] !== "") {
+                  //this.ws.close()
                   this.ws.sessionID = settings[2]
-                  this.ws.reconnect()
+                  //this.ws.reconnect()
                 }
               }
 
@@ -87,12 +90,14 @@ export class HomeComponent implements OnInit {
                       this.restoreSettings(data.data).then(result => {
                         this.accounts.curtainAPI.getSessionSettings(settings[0]).then((d:any)=> {
                           this.data.session = d.data
+
                           this.settings.settings.currentID = d.data.link_id
                           this.uniqueLink = location.origin + "/#/" + this.settings.settings.currentID
+                          this.data.restoreTrigger.next(true)
                         })
                       })
                       this.accounts.curtainAPI.getOwnership(settings[0]).then((data:any) => {
-                        if (data.ownership) {
+                        if (data.data.ownership) {
                           this.accounts.isOwner = true
                         } else {
                           this.accounts.isOwner = false
@@ -126,6 +131,12 @@ export class HomeComponent implements OnInit {
   async initialize() {
     await this.accounts.curtainAPI.getSiteProperties()
     await this.accounts.curtainAPI.user.loadFromDB()
+    if (this.subscription) {
+      this.subscription.unsubscribe()
+    }
+    this.subscription = this.uniprot.uniprotProgressBar.asObservable().subscribe((data: any) => {
+      this.progressEvent = data
+    })
   }
 
 
@@ -151,6 +162,9 @@ export class HomeComponent implements OnInit {
           this.addGeneToSelected(s).then();
         }
       }
+      this.finished = true
+      console.log(this.finished)
+      console.log(this.settings.settings.currentID)
     }
   }
 
@@ -237,6 +251,22 @@ export class HomeComponent implements OnInit {
   }
 
   private saving() {
+    const extraData: any = {
+      uniprot: {
+        results: this.uniprot.results,
+        dataMap: this.uniprot.dataMap,
+        db: this.uniprot.db,
+        organism: this.uniprot.organism,
+        accMap: this.uniprot.accMap,
+        geneNameToAcc: this.uniprot.geneNameToAcc
+      },
+      data: {
+        dataMap: this.data.dataMap,
+        genesMap: this.data.genesMap,
+        primaryIDsmap: this.data.primaryIDsMap,
+        allGenes: this.data.allGenes,
+      }
+    }
     const data: any = {
       raw: this.data.raw.originalFile,
       rawForm: this.data.rawForm,
@@ -248,7 +278,8 @@ export class HomeComponent implements OnInit {
       selectionsName: this.data.selectOperationNames,
       settings: this.settings.settings,
       fetchUniprot: this.data.fetchUniprot,
-      annotatedData: this.data.annotatedData
+      annotatedData: this.data.annotatedData,
+      extraData: extraData
     }
     this.accounts.curtainAPI.putSettings(data, !this.accounts.curtainAPI.user.loginStatus, data.settings.description, "TP",  this.onUploadProgress).then((data: any) => {
       if (data.data) {
@@ -267,11 +298,35 @@ export class HomeComponent implements OnInit {
   }
 
   async restoreSettings(object: any) {
-    console.log(object)
     if (typeof object.settings === "string") {
-      object.settings = JSON.parse(object.settings)
+      object.settings = JSON.parse(object.settings, reviver)
     }
-    console.log(object.settings)
+    if (object.fetchUniprot) {
+      if (object.extraData) {
+        if (typeof object.extraData === "string") {
+          object.extraData = JSON.parse(object.extraData, reviver)
+        }
+
+        if (object.extraData.uniprot) {
+          this.uniprot.results = object.extraData.uniprot.results
+          this.uniprot.dataMap = new Map(object.extraData.uniprot.dataMap.value)
+          this.uniprot.accMap = new Map(object.extraData.uniprot.accMap.value)
+          this.uniprot.db = new Map(object.extraData.uniprot.db.value)
+          this.uniprot.organism = object.extraData.uniprot.organism
+          this.uniprot.accMap = new Map(object.extraData.uniprot.accMap.value)
+          this.uniprot.geneNameToAcc = object.extraData.uniprot.geneNameToAcc
+        }
+        if (object.extraData.data) {
+          this.data.dataMap = new Map(object.extraData.data.dataMap.value)
+          this.data.genesMap = object.extraData.data.genesMap
+          this.data.primaryIDsMap = object.extraData.data.primaryIDsmap
+          this.data.allGenes = object.extraData.data.allGenes
+        }
+        console.log(object.extraData)
+        this.data.bypassUniProt = true
+      }
+    }
+
     if (!object.settings.project) {
       object.settings.project = new Project()
     } else {
@@ -283,6 +338,10 @@ export class HomeComponent implements OnInit {
         }
       }
       object.settings.project = p
+    }
+
+    if (!object.settings.plotFontFamily) {
+      object.settings.plotFontFamily = "Arial"
     }
     if (!object.settings.scatterPlotMarkerSize) {
       object.settings.scatterPlotMarkerSize = 10
@@ -394,18 +453,24 @@ export class HomeComponent implements OnInit {
     } else {
       this.data.differential = new InputFile(fromCSV(object.processed), "processedFile.txt", object.processed)
     }
-    object.settings.version = 2
-    console.log(object.settings.barchartColorMap)
+    this.settings.settings = new Settings()
     for (const i in object.settings) {
-      // @ts-ignore
-      this.settings.settings[i] = object.settings[i]
+      if (i !== "currentID") {
+        // @ts-ignore
+        this.settings.settings[i] = object.settings[i]
+      }
     }
-    this.data.restoreTrigger.next(true)
-    console.log(this.settings.settings.barchartColorMap)
   }
 
   clearSelections() {
-    this.data.clear()
+    //this.data.clear()
+    this.data.selected = []
+    this.data.selectedGenes = []
+    this.data.selectedMap = {}
+    this.data.selectOperationNames = []
+    this.settings.settings.rankPlotAnnotation = {}
+    this.settings.settings.textAnnotation = {}
+    this.data.annotatedData = {}
     this.rawFiltered = new DataFrame()
 
     this.data.selectionUpdateTrigger.next(true)
@@ -413,7 +478,10 @@ export class HomeComponent implements OnInit {
 
   openProfileCompare() {
     const ref = this.modal.open(ProfileCompareComponent, {size: "xl"})
-    ref.componentInstance.selected = this.data.selectedComparison
+    if ( this.data.selectedComparison.length > 0) {
+      ref.componentInstance.selected = this.data.selectedComparison
+    }
+
     ref.componentInstance.data = this.data.raw.df
   }
 
@@ -503,7 +571,14 @@ export class HomeComponent implements OnInit {
   }
 
   onDownloadProgress = (progressEvent: any) => {
-    this.uniprot.uniprotProgressBar.next({value: progressEvent.progress *100, text: "Downloading session data at " + Math.round(progressEvent.progress * 100) + "%"})
+    if (progressEvent.progress) {
+      this.uniprot.uniprotProgressBar.next({value: progressEvent.progress *100, text: "Downloading session data at " + Math.round(progressEvent.progress * 100) + "%"})
+
+    } else {
+      const sizeDownloaded = (progressEvent.loaded / (1024*1024)).toFixed(2)
+      this.uniprot.uniprotProgressBar.next({value: 100, text: "Downloading session data at " + sizeDownloaded + " MB"})
+    }
+
   }
 
   openCollaborateModal() {

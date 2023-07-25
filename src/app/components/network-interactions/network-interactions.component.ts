@@ -1,4 +1,4 @@
-import {Component, Input, OnInit} from '@angular/core';
+import {Component, Input, OnInit, ViewChild} from '@angular/core';
 import {DataService} from "../../data.service";
 import {DbStringService} from "../../db-string.service";
 import {InteractomeAtlasService} from "../../interactome-atlas.service";
@@ -7,6 +7,10 @@ import {UniprotService} from "../../uniprot.service";
 import {ScrollService} from "../../scroll.service";
 import {getInteractomeAtlas, getStringDBInteractions} from "curtain-web-api";
 import {AccountsService} from "../../accounts/accounts.service";
+import {FormBuilder, FormGroup} from "@angular/forms";
+import {SettingsService} from "../../settings.service";
+import {CytoplotComponent} from "../cytoplot/cytoplot.component";
+import {ToastService} from "../../toast.service";
 
 @Component({
   selector: 'app-network-interactions',
@@ -14,6 +18,7 @@ import {AccountsService} from "../../accounts/accounts.service";
   styleUrls: ['./network-interactions.component.scss']
 })
 export class NetworkInteractionsComponent implements OnInit {
+  @ViewChild(CytoplotComponent) cytoplot: CytoplotComponent | undefined
   get requiredScore(): number {
     return this._requiredScore;
   }
@@ -55,70 +60,32 @@ export class NetworkInteractionsComponent implements OnInit {
   nodes: any[] = []
   currentGenes: any = {}
   edgeDataMap: any = {}
-  styles: any[] = [
-    {
-      selector: "node", style: {
-        label: "data(label)",
-        "background-color": "rgba(25,128,128,0.96)",
-        "color": "#fffffe",
-        "text-valign": "center",
-        "text-halign": "center",
-        "text-outline-width": "1px",
-        "text-outline-color": "rgb(16,10,10)",
-        "height": 100,
-        "width": 100,
-      }
-    },
-    {
-      selector: ".genes", style: {
-        label: "data(label)",
-        "background-color": "rgba(139,0,220,0.96)",
-        "color": "#fffffe",
-        "text-valign": "center",
-        "text-halign": "center",
-        "text-outline-width": "1px",
-        "text-outline-color": "rgb(16,10,10)",
-        "height": 50,
-        "width": 50,
-      }
-    },
-    {
-      selector: ".increase", style: {
-        "background-color": "rgba(220,169,0,0.96)"
-      }
-    },
-    {
-      selector: ".decrease", style: {
-        "background-color": "rgba(220,0,59,0.96)"
-      }
-    },
-    {
-      selector: "edge",
-      style: {
-        "line-color": "rgba(25,128,128,0.66)",
-        width: 6,
-        'curve-style': 'bezier',
-        'control-point-distance':50,
-        //'line-style': 'dashed'
-      }
-    },
-    {
-      selector: ".stringdb",
-      style: {"line-color": "rgb(206,128,128)", width: 2}
-    },
-    {
-      selector: ".interactome",
-      style: {"line-color": "rgb(73,73,101)", width: 2}
-    },
-    {
-      selector: ".lrrk2",
-      style: {"line-color": "rgb(73,73,101)", width: 2, "line-style": "solid"}
-    },
-  ]
+  styles: any[] = []
   currentEdges: any = {}
   geneMap: any = {}
+  previousMap: any = {}
   @Input() set genes(value: string[]) {
     const genes: string[] = []
+
+    if (this.settings.settings.networkInteractionSettings === undefined) {
+      this.settings.settings.networkInteractionSettings = {}
+      for (const i in this.form.value) {
+        this.settings.settings.networkInteractionSettings[i] = this.form.value[i]
+        if (i in this.colorMap) {
+          this.colorMap[i] = this.form.value[i].slice()
+        }
+      }
+    } else {
+      for (const i in this.colorMap) {
+        if (!(i in this.settings.settings.networkInteractionSettings)) {
+          this.settings.settings.networkInteractionSettings[i] = this.colorMap[i].slice()
+        } else {
+          this.form.controls[i].setValue(this.settings.settings.networkInteractionSettings[i])
+        }
+
+
+      }
+    }
     this.getGenes(value, genes).then();
   }
 
@@ -131,7 +98,7 @@ export class NetworkInteractionsComponent implements OnInit {
         }
       }
     }
-    if (genes.length > 2) {
+    if (genes.length > 1) {
       const _genes: string[] = []
       for (const v of genes) {
         const g = v.split(";")[0]
@@ -145,31 +112,88 @@ export class NetworkInteractionsComponent implements OnInit {
       }
       this._genes = _genes
 
-      if (this._genes.length > 2) {
+      if (this._genes.length > 1) {
+        console.log(this._genes)
         await this.getInteractions()
       }
     }
   }
 
-  constructor(private accounts: AccountsService, private scroll: ScrollService, private data: DataService, private dbString: DbStringService, private interac: InteractomeAtlasService, private uniprot: UniprotService) { }
+  form: FormGroup = this.fb.group({
+    ascore: [0,],
+    dscore: [0,],
+    escore: [0,],
+    fscore: [0,],
+    nscore: [0,],
+    pscore: [0,],
+    tscore: [0,],
+    atlasScore: [0,],
+    requiredScore: [0.4],
+    networkType: ["functional"],
+    "Increase": ["rgb(25,128,128)",],
+    "Decrease": ["rgb(220,0,59)",],
+    "StringDB": ["rgb(206,128,128)",],
+    "No change": ["rgba(47,39,40,0.96)",],
+    "Not significant": ["rgba(255,255,255,0.96)",],
+    "Significant": ["rgba(252,107,220,0.96)",],
+    "InteractomeAtlas": ["rgb(73,73,101)",],
+  })
+
+  colorMap: any = {
+    "Increase": "rgb(25,128,128)",
+    "Decrease": "rgb(220,0,59)",
+    "StringDB": "rgb(206,128,128)",
+    "No change": "rgba(47,39,40,0.96)",
+    "Not significant": "rgba(255,255,255,0.96)",
+    "Significant": "rgba(252,107,220,0.96)",
+    "InteractomeAtlas": "rgb(73,73,101)",
+  }
+
+  result: any = {data: this.nodes.slice(), stylesheet: this.styles.slice(), id:'networkInteractions'}
+
+  constructor(private toast: ToastService, private fb: FormBuilder, public settings: SettingsService, private accounts: AccountsService, private scroll: ScrollService, private data: DataService, private dbString: DbStringService, private interac: InteractomeAtlasService, private uniprot: UniprotService) {
+
+
+  }
 
   ngOnInit(): void {
   }
 
   async getInteractions() {
+    this.previousMap = {}
+    if (this.cytoplot) {
+      this.saveNetwork()
+    }
+    this.toast.show("Interaction network", "Getting network interaction data").then()
+    for (const i of this.settings.settings.networkInteractionData) {
+      this.previousMap[i.data.id] = i
+    }
+    if (!this.settings.settings.networkInteractionData) {
+      this.settings.settings.networkInteractionData = []
+    }
+    if (this.form.dirty) {
+      for (const i in this.form.value) {
+        this.settings.settings.networkInteractionSettings[i] = this.form.value[i]
+      }
+      this.form.markAsPristine()
+    }
+    this.styles = [...this.createStyles()]
     const nodes: any[] = []
     this.currentEdges = {}
     this.currentGenes = {}
     let result: any = {}
     let resultInteractome: any = {}
+    const newNodes: any[] = []
     try {
-      result = await getStringDBInteractions(this._genes, this.uniprot.organism, this._requiredScore*1000, this.networkType)
+      this.toast.show("Interaction network", "Getting StringDB data").then()
+      result = await getStringDBInteractions(this._genes, this.uniprot.organism, this.form.value.requiredScore*1000, this.form.value.networkType)
       const tempDF = fromCSV(<string>result.data)
       if (tempDF.count() > 0) {
+        console.log(tempDF.count())
         for (const r of tempDF) {
           let checked = true
           for (const i in this.otherScore) {
-            if (parseFloat(r[i]) < this.otherScore[i]) {
+            if (parseFloat(r[i]) < this.form.value[i]) {
               checked = false
             }
           }
@@ -182,16 +206,21 @@ export class NetworkInteractionsComponent implements OnInit {
               let classes = "edge stringdb"
               if (this._genes.includes(r["preferredName_A"])&&this._genes.includes(r["preferredName_B"])) {
                 this.currentEdges[nodeName] = true
-                nodes.push(
-                  {data:
-                      {
-                        id: nodeName,
-                        source: "gene-"+ r["preferredName_A"],
-                        target: "gene-"+ r["preferredName_B"],
-                        score: r["score"]
-                      }, classes: classes
-                  }
-                )
+                if (this.previousMap[nodeName]) {
+                  nodes.push(this.previousMap[nodeName])
+                } else {
+                  newNodes.push(
+                    {data:
+                        {
+                          id: nodeName,
+                          source: "gene-"+ r["preferredName_A"],
+                          target: "gene-"+ r["preferredName_B"],
+                          score: r["score"]
+                        }, classes: classes
+                    }
+                  )
+                }
+
               }
             }
             if (this.geneMap[r["preferredName_A"]]) {
@@ -209,6 +238,7 @@ export class NetworkInteractionsComponent implements OnInit {
     }
     try {
       //const resultInteractome = await getInteractomeAtlas(this._genes, "query_query")
+      this.toast.show("Interaction network", "Getting Interactome Atlas data").then()
       let resultInteractome = await this.accounts.curtainAPI.postInteractomeAtlasProxy(this._genes, "query_query")
       resultInteractome.data = JSON.parse(resultInteractome.data)
       if (resultInteractome.data["all_interactions"]) {
@@ -218,7 +248,7 @@ export class NetworkInteractionsComponent implements OnInit {
             let checked = false
             if (score !== 0) {
               checked = true
-            } else if (score >= this._atlasScore) {
+            } else if (score >= this.form.value.atlasScore) {
               checked = true
             }
             if (checked) {
@@ -231,16 +261,21 @@ export class NetworkInteractionsComponent implements OnInit {
                 if (this._genes.includes(r["interactor_A"]["protein_gene_name"])&&this._genes.includes(r["interactor_B"]["protein_gene_name"])){
 
                   this.currentEdges[nodeName] = true
-                  nodes.push(
-                    {data:
-                        {
-                          id: nodeName,
-                          source: "gene-"+r["interactor_A"]["protein_gene_name"],
-                          target: "gene-"+r["interactor_B"]["protein_gene_name"],
-                          score: r["score"]
-                        }, classes: classes
-                    }
-                  )
+                  if (this.previousMap[nodeName]) {
+                    nodes.push(this.previousMap[nodeName])
+                  } else {
+                    newNodes.push(
+                      {data:
+                          {
+                            id: nodeName,
+                            source: "gene-"+r["interactor_A"]["protein_gene_name"],
+                            target: "gene-"+r["interactor_B"]["protein_gene_name"],
+                            score: r["score"]
+                          }, classes: classes
+                      }
+                    )
+                  }
+
                 }
               }
               if (this.geneMap[r["interactor_A"]["protein_gene_name"]]) {
@@ -263,16 +298,40 @@ export class NetworkInteractionsComponent implements OnInit {
       if (this.selection !== "") {
         df = df.where(r => r[this.data.differentialForm.comparison] === this.selection).bake()
       }
-      const fc = df.getSeries(this.data.differentialForm.foldChange).bake().sum()
+      const fc = df.getSeries(this.data.differentialForm.foldChange).bake().max()
       let classes = "genes"
-      if (fc > 0) {
+      if (fc > 0 && fc >= this.settings.settings.log2FCCutoff) {
         classes = classes + " increase"
-      } else if (fc < 0) {
+      } else if (fc < 0 && fc <= -this.settings.settings.log2FCCutoff) {
         classes = classes + " decrease"
+      } else {
+        classes = classes + " noChange"
       }
-      nodes.push({data: {id: "gene-"+n, label: this.geneMap[n], size: 2}, classes: classes})
+      const significant = df.getSeries(this.data.differentialForm.significant).bake().max()
+      if (significant >= -Math.log10(this.settings.settings.pCutoff)) {
+        classes = classes + " significant"
+      } else {
+        classes = classes + " not-significant"
+      }
+
+      if (this.previousMap["gene-"+n]) {
+        nodes.push(this.previousMap["gene-"+n])
+      } else {
+        newNodes.push({data: {id: "gene-"+n, label: this.geneMap[n].split(";")[0], size: 2}, classes: classes})
+      }
+
     }
-    this.nodes = nodes
+
+
+    this.nodes = nodes.concat(newNodes)
+    const remove: any[] = this.settings.settings.networkInteractionData.filter(r => !nodes.includes(r))
+
+    let fromBase: boolean = false
+    if (this.settings.settings.networkInteractionData.length > 0) {
+      fromBase = true
+    }
+    this.toast.show("Interaction network", `Adding ${newNodes.length} objects while removing ${remove.length} objects`).then()
+    this.result = {data: this.nodes.slice(), add: newNodes.slice(), stylesheet: this.styles.slice(), id:'networkInteractions', remove: remove, fromBase: fromBase}
   }
 
   handleSelect(e: string) {
@@ -283,8 +342,6 @@ export class NetworkInteractionsComponent implements OnInit {
       if (primaryIDs.length > 0) {
         const ind = this.data.selected.sort().indexOf(primaryIDs[0])
         const newPage = Math.floor((ind + 1)/ this.data.pageSize) + 1
-        console.log(this.data.page)
-        console.log(newPage)
 
         if (this.data.page !== newPage) {
           this.data.page = newPage
@@ -302,5 +359,97 @@ export class NetworkInteractionsComponent implements OnInit {
   handleSelection(e: string) {
     this.selection = e
     this.getInteractions().then()
+  }
+
+  updateColor(color: string, key: string) {
+    this.form.controls[key].setValue(color)
+    this.form.markAsDirty()
+  }
+
+  createStyles() {
+
+    return [
+      {
+        selector: "node", style: {
+          label: "data(label)",
+          "background-color": "rgba(25,128,128,0.96)",
+          "color": "#fffffe",
+          "text-valign": "center",
+          "text-halign": "center",
+          "text-outline-width": "1px",
+          "text-outline-color": "rgb(16,10,10)",
+          "height": 20,
+          "width": 20,
+        }
+      },
+      {
+        selector: ".genes", style: {
+          label: "data(label)",
+          //"background-color": "rgba(139,0,220,0.96)",
+          "color": "#fffffe",
+          "text-valign": "center",
+          "text-halign": "center",
+          "text-outline-width": "1px",
+          "text-outline-color": "rgb(16,10,10)",
+          "height": 20,
+          "width": 20,
+          "font-size": "6px",
+          "font-family": "Arial, Helvetica, sans-serif",
+        }
+      },
+      {
+        selector: ".increase", style: {
+          "background-color": this.settings.settings.networkInteractionSettings["Increase"]
+        }
+      },
+      {
+        selector: ".decrease", style: {
+          "background-color": this.settings.settings.networkInteractionSettings["Decrease"]
+        }
+      },
+      {
+        selector: ".noChange", style: {
+          "background-color": this.settings.settings.networkInteractionSettings["No change"]
+        }
+      },
+      {
+        selector: ".significant", style: {
+          "color": this.settings.settings.networkInteractionSettings["Significant"]
+        }
+      },
+      {
+        selector: ".not-significant", style: {
+          "color": this.settings.settings.networkInteractionSettings["Not significant"]
+        }
+      },
+      {
+        selector: "edge",
+        style: {
+          "line-color": "rgba(25,128,128,0.66)",
+          width: 1,
+          "curve-style": "bezier",
+          //'line-style': 'dashed'
+        }
+      },
+      {
+        selector: ".stringdb",
+        style: {"line-color": this.settings.settings.networkInteractionSettings["StringDB"], width: 1}
+      },
+      {
+        selector: ".interactome",
+        style: {"line-color": this.settings.settings.networkInteractionSettings["InteractomeAtlas"], width: 1}
+      },
+      {
+        selector: ".lrrk2",
+        style: {"line-color": "rgb(73,73,101)", width: 1, "line-style": "solid"}
+      },
+    ]
+  }
+
+  saveNetwork() {
+    if (this.cytoplot) {
+      this.settings.settings.networkInteractionData = this.cytoplot.saveJSON()
+      this.toast.show("Interaction network", "Updated network data").then()
+    }
   }
 }
