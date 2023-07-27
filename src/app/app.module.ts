@@ -31,7 +31,6 @@ import {ColorPickerModule} from "ngx-color-picker";
 import { QuickNavigationComponent } from './components/quick-navigation/quick-navigation.component';
 import { ProfilePlotComponent } from './components/profile-plot/profile-plot.component';
 import { ProfileCompareComponent } from './components/profile-compare/profile-compare.component';
-import { ExperimentalArtComponent } from './components/experimental-art/experimental-art.component';
 import { CorrelationMatrixComponent } from './components/correlation-matrix/correlation-matrix.component';
 import { ToastContainerComponent } from './components/toast-container/toast-container.component';
 import { CitationComponent } from './components/citation/citation.component';
@@ -60,6 +59,7 @@ import { RankPlotTextAnnotationComponent } from './components/rank-plot-text-ann
 import { SelectedDataDistributionPlotComponent } from './components/selected-data-distribution-plot/selected-data-distribution-plot.component';
 import { LocalSessionStateModalComponent } from './components/local-session-state-modal/local-session-state-modal.component';
 import { RankAbundanceModalComponent } from './components/rank-abundance-modal/rank-abundance-modal.component';
+import { EnrichrModalComponent } from './components/enrichr-modal/enrichr-modal.component';
 PlotlyModule.plotlyjs = PlotlyJS;
 @NgModule({
   declarations: [
@@ -87,7 +87,6 @@ PlotlyModule.plotlyjs = PlotlyJS;
     QuickNavigationComponent,
     ProfilePlotComponent,
     ProfileCompareComponent,
-    ExperimentalArtComponent,
     CorrelationMatrixComponent,
     ToastContainerComponent,
     CitationComponent,
@@ -109,6 +108,7 @@ PlotlyModule.plotlyjs = PlotlyJS;
     SelectedDataDistributionPlotComponent,
     LocalSessionStateModalComponent,
     RankAbundanceModalComponent,
+    EnrichrModalComponent,
   ],
   imports: [
     BrowserModule,
