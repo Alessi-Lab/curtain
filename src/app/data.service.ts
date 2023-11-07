@@ -41,6 +41,7 @@ export class DataService {
     "ANOVA",
     "TTest"
   ]
+  clearWatcher: Subject<boolean> = new Subject<boolean>()
   redrawTrigger: Subject<boolean> = new Subject()
   annotatedData: any = {}
   get allGenes(): string[] {
@@ -194,6 +195,7 @@ export class DataService {
   restoreTrigger: Subject<boolean> = new Subject<boolean>()
   annotationService: Subject<any> = new Subject<any>()
   searchCommandService: Subject<any> = new Subject<any>()
+  resetVolcanoColor: Subject<boolean> = new Subject<boolean>()
   constructor(private uniprot: UniprotService, private settings: SettingsService) { }
   minMax: any = {
     fcMin: 0,
@@ -210,30 +212,39 @@ export class DataService {
     this.selectedGenes = []
     this.selectedMap = {}
     this.selectOperationNames = []
-    this.settings.settings.colorMap = {}
+    //this.settings.settings.colorMap = {}
     this.settings.settings.textAnnotation = {}
-    this.settings.settings.barchartColorMap = {}
+    //this.settings.settings.barchartColorMap = {}
     this.settings.settings.rankPlotAnnotation = {}
     this.settings.settings.rankPlotColorMap = {}
     this.annotatedData = {}
+    let colorPosition = 0
+
+
+    this.clearWatcher.next(true)
   }
 
   significantGroup(x: number, y: number) {
     const ylog = -Math.log10(this.settings.settings.pCutoff)
     const groups: string[] = []
+    let position = ""
     if (ylog > y) {
       groups.push("P-value > " + this.settings.settings.pCutoff)
+      position = "P-value > "
     } else {
       groups.push("P-value <= " + this.settings.settings.pCutoff)
+      position = "P-value <= "
     }
 
     if (Math.abs(x) > this.settings.settings.log2FCCutoff) {
       groups.push("FC > " + this.settings.settings.log2FCCutoff)
+      position += "FC > "
     } else {
       groups.push("FC <= " + this.settings.settings.log2FCCutoff)
+      position += "FC <= "
     }
 
-    return groups.join(";")
+    return [groups.join(";"), position]
   }
 
   getPrimaryIDsFromGeneNames(geneNames: string) {

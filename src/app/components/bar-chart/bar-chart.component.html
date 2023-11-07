@@ -13,7 +13,11 @@
 </div>
 <div class="card">
   <div class="card-body">
-    <plotly-plot [config]="config" [divId]="_data[dataService.rawForm.primaryIDs]+'bar'" [data]="graphData" [layout]="graphLayout" [updateOnDataChange]="true" [updateOnLayoutChange]="true"></plotly-plot>
+    <div class="d-flex justify-content-center">
+      <div class="p-2">
+        <plotly-plot [config]="config" [divId]="_data[dataService.rawForm.primaryIDs]+'bar'" [data]="graphData" [layout]="graphLayout" [updateOnDataChange]="true" [updateOnLayoutChange]="true"></plotly-plot>
+      </div>
+    </div>
   </div>
 </div>
 <div class="row mt-2">
@@ -38,6 +42,13 @@
         <plotly-plot [config]="configViolin" [divId]="_data[dataService.rawForm.primaryIDs]+'violin'" [data]="graphDataViolin" [layout]="graphLayoutViolin" [updateOnDataChange]="true" [updateOnLayoutChange]="true"></plotly-plot>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="mt-2">
+  <div class="form-check">
+    <input id="enableDotpoints" type="checkbox" class="form-check-input" [(ngModel)]="averageBarchartEnableDot" (change)="drawAverageBarChart()">
+    <label for="enableDotpoints" class="form-check-label">Dot points within error bar chart</label>
   </div>
 </div>
 

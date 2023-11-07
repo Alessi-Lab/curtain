@@ -6,12 +6,18 @@
   <div class="col-8">
     <div class="card">
       <div class="card-body">
-        <app-cytoplot *ngIf="hasError === false" #cytoplot [drawData]="drawData" (clickedID)="viewEvidences($event)"></app-cytoplot>
-        <div class="card bg-danger" *ngIf="hasError===true">
-          <div class="card-body">
-            <p class="text-danger">No data found</p>
+        <div class="d-flex justify-content-center">
+          <div class="p-2">
+            <app-cytoplot *ngIf="hasError === false" #cytoplot [drawData]="drawData" (clickedID)="viewEvidences($event)"></app-cytoplot>
+            <div class="card bg-danger" *ngIf="hasError===true">
+              <div class="card-body">
+                <p class="text-danger">No data found</p>
+              </div>
+            </div>
           </div>
         </div>
+
+
       </div>
     </div>
     <div class="card mt-2 mb-2" *ngIf="selected">
@@ -83,7 +89,14 @@
               <td>
                 <input formControlName="No change" (colorPickerChange)="updateColor($event, 'Increase')" class="form-control" [(colorPicker)]="colorMap['No change']" [style.background]="colorMap['No change']">
               </td>
-              <td>Protein found in data set but was not changed (FC < 1.5)</td>
+              <td>Protein found in data set but was not changed according to volcano plot settings</td>
+            </tr>
+            <tr>
+              <td>
+                <input formControlName="Not found" (colorPickerChange)="updateColor($event, 'Not found')" class="form-control" [(colorPicker)]="colorMap['Not found']" [style.background]="colorMap['Not found']">
+              </td>
+              <td>Protein not found in data set</td>
+            </tr>
           </table>
         </form>
       </div>

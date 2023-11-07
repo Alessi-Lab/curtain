@@ -43,10 +43,13 @@ export class BarChartComponent implements OnInit {
 
   }
 
+  averageBarchartEnableDot = true
+
   title = ""
   graph: any = {}
   graphData: any[] = []
   graphLayout: any = {
+    width: 1200,
     xaxis: {
       tickfont: {
         size: 17,
@@ -213,12 +216,12 @@ export class BarChartComponent implements OnInit {
     let sampleNumber: number = 0
     console.log(this.settings.settings.barchartColorMap)
 
-    for (const s in this.dataService.sampleMap) {
+    for (const s in this.settings.settings.sampleMap) {
 
       if (this.settings.settings.sampleVisible[s]) {
         sampleNumber ++
-        const condition = this.dataService.sampleMap[s].condition
-        let color = this.dataService.colorMap[condition]
+        const condition = this.settings.settings.sampleMap[s].condition
+        let color = this.settings.settings.colorMap[condition]
         if (this.settings.settings.barchartColorMap[condition]) {
           color = this.settings.settings.barchartColorMap[condition]
         }
@@ -287,10 +290,10 @@ export class BarChartComponent implements OnInit {
     const graphViolin: any[] = []
     const graph: any = {}
     let sampleNumber: number = 0
-    for (const s in this.dataService.sampleMap) {
+    for (const s in this.settings.settings.sampleMap) {
       if (this.settings.settings.sampleVisible[s]) {
         sampleNumber ++
-        const condition = this.dataService.sampleMap[s].condition
+        const condition = this.settings.settings.sampleMap[s].condition
         if (!graph[condition]) {
           graph[condition] = []
         }
@@ -298,7 +301,7 @@ export class BarChartComponent implements OnInit {
       }
     }
     for (const g in graph) {
-      let color = this.dataService.colorMap[g]
+      let color = this.settings.settings.colorMap[g]
       if (this.settings.settings.barchartColorMap[g]) {
         color = this.settings.settings.barchartColorMap[g]
       }
@@ -365,7 +368,7 @@ export class BarChartComponent implements OnInit {
         default:
           break
       }
-      graphData.push({
+      const data: any = {
         x: [g], y: [mean],
         type: 'bar',
         mode: 'markers',
@@ -382,7 +385,12 @@ export class BarChartComponent implements OnInit {
         },
         //visible: temp[t].visible,
         showlegend: false
-      })
+      }
+
+      if (!this.averageBarchartEnableDot) {
+        box.boxpoints = "false"
+      }
+      graphData.push(data)
       graphData.push(box)
       tickVals.push(g)
       tickText.push(g)
@@ -400,17 +408,14 @@ export class BarChartComponent implements OnInit {
     //const b = this.graph[this.conditionB]
 
     const conditions = this.selectedConditions.map(a => this.graph[a].y)
-    console.log(conditions)
     switch (this.testType) {
       case "ANOVA":
         this.comparisons = [{conditions: this.selectedConditions.slice(), comparison: this.stats.calculateAnova2(conditions)}]
-        console.log(this.comparisons)
         break
       case "TTest":
         this.stats.calculateTTest(this.graph[this.conditionA].y, this.graph[this.conditionB].y).then((result: any) => {
           this.selectedConditions = [this.conditionA, this.conditionB]
           this.comparisons = [{conditions: this.selectedConditions.slice(), comparison: result.data}]
-          console.log(this.comparisons)
         })
         //console.log(this.stats.calculateTTest(a.y, b.y))
         //this.comparisons = [{a: this.conditionA, b: this.conditionB, comparison: this.stats.calculateTTest(a.y, b.y)}]

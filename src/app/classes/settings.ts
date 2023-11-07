@@ -4,6 +4,7 @@ export class Settings {
   fetchUniprot: boolean = true
   inputDataCols: any = {}
   probabilityFilterMap: any = {}
+  sampleMap: any = {}
   barchartColorMap: any = {}
   pCutoff: number = 0.05
   log2FCCutoff: number = 0.6
@@ -13,6 +14,7 @@ export class Settings {
   academic: boolean = true
   backGroundColorGrey: boolean = false
   currentComparison: string = ""
+  selectedComparison: string[] = []
   version: number = 2
   currentID: string = ""
   fdrCurveText: string = ""
@@ -37,7 +39,7 @@ export class Settings {
     "#fdcce5",
     "#8bd3c7",
   ]
-  scatterPlotMarkerSize: number = 5
+  scatterPlotMarkerSize: number = 10
   rankPlotColorMap: any = {}
   rankPlotAnnotation: any = {}
   legendStatus: any = {}
@@ -53,6 +55,8 @@ export class Settings {
     "HI-Union": "rgba(82,110,194,0.96)",
     "Literature": "rgba(181,151,222,0.96)",
     "HI-Union and Literature": "rgba(222,178,151,0.96)",
+    "Not found": "rgba(25,128,128,0.96)",
+    "No change": "rgba(47,39,40,0.96)",
   }
   proteomicsDBColor: string = "#ff7f0e"
   networkInteractionSettings: any = {
@@ -66,4 +70,7 @@ export class Settings {
   }
   plotFontFamily: string = "Arial"
   networkInteractionData: any[] = []
+  enrichrGeneRankMap: any = {}
+  enrichrRunList: string[] = []
+  customVolcanoTextCol = ""
 }

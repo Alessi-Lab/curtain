@@ -17,10 +17,13 @@ export class DefaultColorPaletteComponent implements OnInit {
     {
       colorPalette: [""],
       resetBarChartColor: [false],
+      resetVolcanoColor: [false],
     }
   )
   selectedColor: string[] = []
-  customPalette: string[] = []
+  customPalette: {origin: string, new: string}[] = []
+  colorMap: any = {}
+
   constructor(private modal: NgbActiveModal, public data: DataService, private settings: SettingsService, private fb: FormBuilder, private toast: ToastService) {
     this.currentColor = this.settings.settings.defaultColorList.slice()
     this.colorPaletteList = Object.keys(this.data.palette)
@@ -42,7 +45,7 @@ export class DefaultColorPaletteComponent implements OnInit {
   updateColor() {
 
     if (this.customPalette.length > 0) {
-      this.settings.settings.defaultColorList = this.customPalette.slice()
+      this.settings.settings.defaultColorList = this.customPalette.map((a: any) => a.new)
     } else {
       if (this.form.value["colorPalette"] !=="" && this.form.value["colorPalette"]!== null && this.form.value["colorPalette"]!== undefined) {
         if (this.data.palette[this.form.value["colorPalette"]]) {
@@ -50,12 +53,22 @@ export class DefaultColorPaletteComponent implements OnInit {
         }
       }
     }
-    let currentPosition = 0
+
+    if (this.form.value["resetVolcanoColor"]) {
+      this.data.resetVolcanoColor.next(true)
+      const colorMap: any = {}
+      for (const c of this.settings.settings.conditionOrder) {
+        colorMap[c] = this.settings.settings.colorMap[c].slice()
+      }
+      this.settings.settings.colorMap = colorMap
+      this.data.selectionUpdateTrigger.next(true)
+    }
     if (this.form.value["resetBarChartColor"]) {
+      let currentPosition = 0
       for (const s of this.settings.settings.conditionOrder) {
-        if (this.settings.settings.defaultColorList[currentPosition] !== this.data.colorMap[s]) {
+        if (this.settings.settings.defaultColorList[currentPosition] !== this.settings.settings.colorMap[s]) {
           this.settings.settings.barchartColorMap[s] = this.settings.settings.defaultColorList[currentPosition].slice()
-          this.data.colorMap[s] = this.settings.settings.defaultColorList[currentPosition].slice()
+          this.settings.settings.colorMap[s] = this.settings.settings.defaultColorList[currentPosition].slice()
         }
         currentPosition += 1
         if (currentPosition >= this.settings.settings.defaultColorList.length) {
@@ -63,6 +76,8 @@ export class DefaultColorPaletteComponent implements OnInit {
         }
       }
     }
+    console.log(this.settings.settings.colorMap)
+    console.log(this.settings.settings.barchartColorMap)
     this.data.redrawTrigger.next(true)
     this.modal.close()
   }
@@ -74,9 +89,9 @@ export class DefaultColorPaletteComponent implements OnInit {
   openCustomPalette(palette: string | null | undefined) {
     if (palette) {
       if (palette === "current") {
-        this.customPalette = this.currentColor.slice()
+        this.customPalette = this.currentColor.slice().map((a:string) => {return {origin: a, new: a}})
       } else if (this.colorPaletteList.includes(palette)) {
-        this.customPalette = this.data.palette[palette].slice()
+        this.customPalette = this.data.palette[palette].map((a:string) => {return {origin: a, new: a}})
       }
     }
 
@@ -87,7 +102,7 @@ export class DefaultColorPaletteComponent implements OnInit {
   }
 
   addCustomColor() {
-    this.customPalette.push("#ffffff")
+    this.customPalette.push({origin: "#ffffff", new: "#ffffff"})
   }
 
   removeCustomColor(index: number) {

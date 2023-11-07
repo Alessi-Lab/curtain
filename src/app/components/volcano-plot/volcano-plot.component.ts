@@ -24,7 +24,7 @@ export class VolcanoPlotComponent implements OnInit {
   _data: any;
   //nameToID: any = {}
   graphData: any[] = []
-
+  scattergl: boolean = false
   graphLayout: any = {
     height: 700, width: 700, xaxis: {title: "<b>Log2FC</b>"},
     yaxis: {title: "<b>-log10(p-value)</b>"},
@@ -35,7 +35,8 @@ export class VolcanoPlotComponent implements OnInit {
     title: {
       text: this.settings.settings.volcanoPlotTitle,
       font: {
-        size: 24
+        size: 24,
+        family: "Arial, sans-serif"
       },
     }
   }
@@ -72,7 +73,9 @@ export class VolcanoPlotComponent implements OnInit {
   currentLegend: string[] = []
 
   markerSize: number = 10
+  specialColorMap: any = {}
   drawVolcano() {
+
     this.currentPosition = 0
     this.settings.settings.scatterPlotMarkerSize = this.markerSize
     if (!this.settings.settings.visible) {
@@ -81,7 +84,15 @@ export class VolcanoPlotComponent implements OnInit {
     this.graphLayout.title.text = this.settings.settings.volcanoPlotTitle
     let currentColors: string[] = []
     if (this.settings.settings.colorMap) {
-      currentColors = Object.values(this.settings.settings.colorMap)
+      for (const s in this.settings.settings.colorMap) {
+        if (!this.dataService.conditions.includes(s)) {
+          if (this.settings.settings.colorMap[s]) {
+            if (this.settings.settings.defaultColorList.includes(this.settings.settings.colorMap[s])) {
+              currentColors.push(this.settings.settings.colorMap[s])
+            }
+          }
+        }
+      }
     } else {
       this.settings.settings.colorMap = {}
     }
@@ -94,6 +105,10 @@ export class VolcanoPlotComponent implements OnInit {
     }
     const temp: any = {}
 
+
+    if (currentColors.length !== this.settings.settings.defaultColorList.length) {
+      this.currentPosition = currentColors.length
+    }
     for (const s of this.dataService.selectOperationNames) {
       if (!this.settings.settings.colorMap[s]) {
         while (true) {
@@ -166,6 +181,9 @@ export class VolcanoPlotComponent implements OnInit {
       mode: "markers",
       name: "Background"
     }
+    if (this.scattergl) {
+      temp["Background"].type = "scattergl"
+    }
     if (this.settings.settings.backGroundColorGrey) {
       temp["Background"]["marker"] = {
         color: "#a4a2a2",
@@ -201,6 +219,9 @@ export class VolcanoPlotComponent implements OnInit {
       if (geneNames !== "") {
         text = geneNames + "[" + primaryID + "]" + " (" + r[this.dataService.differentialForm.comparison] + ")"
       }
+      if (this.settings.settings.customVolcanoTextCol !== "") {
+        text = r[this.settings.settings.customVolcanoTextCol]
+      }
       //this.nameToID[text] = primaryID
 
       if (this.dataService.selectedMap[primaryID]) {
@@ -226,14 +247,35 @@ export class VolcanoPlotComponent implements OnInit {
         temp["Background"].text.push(text)
         temp["Background"].primaryIDs.push(primaryID)
       } else {
-        let group = this.dataService.significantGroup(x, y) + " (" + r[this.dataService.differentialForm.comparison] + ")"
+        const gr = this.dataService.significantGroup(x, y)
+        let group = this.dataService.significantGroup(x, y)[0] + " (" + r[this.dataService.differentialForm.comparison] + ")"
+
         if (!temp[group]) {
           if (!this.settings.settings.colorMap[group]) {
-            this.settings.settings.colorMap[group] = this.settings.settings.defaultColorList[this.currentPosition]
+            if (!this.specialColorMap[gr[1]]) {
+
+              console.log(this.currentPosition)
+              console.log(this.settings.settings.defaultColorList.length)
+              console.log(this.settings.settings.defaultColorList[this.currentPosition])
+              if (this.settings.settings.defaultColorList[this.currentPosition]) {
+                this.specialColorMap[gr[1]] = this.settings.settings.defaultColorList[this.currentPosition].slice()
+                this.settings.settings.colorMap[group] = this.settings.settings.defaultColorList[this.currentPosition].slice()
+              } else {
+                this.currentPosition = 0
+                this.specialColorMap[gr[1]] = this.settings.settings.defaultColorList[this.currentPosition].slice()
+                this.settings.settings.colorMap[group] = this.settings.settings.defaultColorList[this.currentPosition].slice()
+              }
+            } else {
+              this.settings.settings.colorMap[group] = this.specialColorMap[gr[1]].slice()
+            }
+
+
             this.currentPosition ++
             if (this.currentPosition === this.settings.settings.defaultColorList.length) {
               this.currentPosition = 0
             }
+          } else {
+            this.specialColorMap[gr[1]] = this.settings.settings.colorMap[group].slice()
           }
 
           temp[group] = {
@@ -249,6 +291,9 @@ export class VolcanoPlotComponent implements OnInit {
               size: this.settings.settings.scatterPlotMarkerSize
             },
             name: group
+          }
+          if (this.scattergl) {
+            temp[group].type = "scattergl"
           }
         }
         temp[group].x.push(x)
@@ -379,9 +424,11 @@ export class VolcanoPlotComponent implements OnInit {
 
       this.graphLayout.shapes = cutOff
     }
-    this.graphData = graphData.reverse()
+    if (!this.scattergl) {
+      this.graphData = graphData.reverse()
+    }
+
     this.graphLayout.annotations = []
-    console.log(this.settings.settings.textAnnotation)
     for (const i in this.settings.settings.textAnnotation) {
       if (this.settings.settings.textAnnotation[i].data.showannotation === true) {
         this.annotated[this.settings.settings.textAnnotation[i].title] = this.settings.settings.textAnnotation[i].data
@@ -393,7 +440,7 @@ export class VolcanoPlotComponent implements OnInit {
     //this.removeAnnotatedDataPoints([])
   }
 
-  constructor(private fb: FormBuilder, private web: WebService, private dataService: DataService, private uniprot: UniprotService, public settings: SettingsService, private modal: NgbModal, private messageService: ToastService) {
+  constructor(private fb: FormBuilder, private web: WebService, public dataService: DataService, private uniprot: UniprotService, public settings: SettingsService, private modal: NgbModal, private messageService: ToastService) {
     this.annotated = {}
     for (const i in this.settings.settings.textAnnotation) {
       if (this.settings.settings.textAnnotation[i].data.showannotation === undefined || this.settings.settings.textAnnotation[i].data.showannotation === null) {
@@ -401,7 +448,11 @@ export class VolcanoPlotComponent implements OnInit {
       }
       this.annotated[i] = this.settings.settings.textAnnotation[i]
     }
-
+    this.dataService.resetVolcanoColor.asObservable().subscribe(data => {
+      if (data) {
+        this.specialColorMap = {}
+      }
+    })
     this.markerSize = this.settings.settings.scatterPlotMarkerSize
     this.dataService.selectionUpdateTrigger.asObservable().subscribe(data => {
       if (data) {
@@ -464,7 +515,7 @@ export class VolcanoPlotComponent implements OnInit {
           this.selected.emit(
             {
               data: selected,
-              title: "Selected " + selected.length + " genes." + "(Selection #" + (this.dataService.selectOperationNames.length+1) + ")"
+              title: "Selected " + selected.length + " genes." + "[Selection #" + (this.dataService.selectOperationNames.length+1) + "]"
             }
           )
         }
@@ -511,6 +562,7 @@ export class VolcanoPlotComponent implements OnInit {
       }
 
       if (!this.annotated[title]) {
+
         const ann: any = {
           xref: 'x',
           yref: 'y',
@@ -525,9 +577,13 @@ export class VolcanoPlotComponent implements OnInit {
           ay: -20,
           font: {
             size: 15,
-            color: "#000000"
+            color: "#000000",
+            family: "Arial, sans-serif"
           },
           showannotation: true,
+        }
+        if (this.settings.settings.customVolcanoTextCol !== "") {
+          ann.text = "<b>"+a[this.settings.settings.customVolcanoTextCol]+"</b>"
         }
         if (title in this.settings.settings.textAnnotation) {
 

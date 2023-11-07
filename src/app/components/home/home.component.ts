@@ -35,6 +35,16 @@ import {
 import {SaveStateService} from "../../save-state.service";
 import {LocalSessionStateModalComponent} from "../local-session-state-modal/local-session-state-modal.component";
 import {Subscription} from "rxjs";
+import {EnrichrModalComponent} from "../enrichr-modal/enrichr-modal.component";
+import {
+  SampleConditionAssignmentModalComponent
+} from "../sample-condition-assignment-modal/sample-condition-assignment-modal.component";
+import {
+  ComparisonAgainstOtherPromptComponent
+} from "../comparison-against-other-prompt/comparison-against-other-prompt.component";
+import {
+  SessionComparisonResultViewerModalComponent
+} from "../session-comparison-result-viewer-modal/session-comparison-result-viewer-modal.component";
 
 @Component({
   selector: 'app-home',
@@ -42,6 +52,8 @@ import {Subscription} from "rxjs";
   styleUrls: ['./home.component.scss']
 })
 export class HomeComponent implements OnInit {
+  isRankPlotCollapse: boolean = true
+  GDPR: boolean = false
   finished: boolean = false
   rawFiltered: IDataFrame = new DataFrame()
   uniqueLink: string = ""
@@ -53,6 +65,18 @@ export class HomeComponent implements OnInit {
     // if (location.protocol === "https:" && location.hostname === "curtainptm.proteo.info") {
     //   this.toast.show("Initialization", "Error: The webpage requires the url protocol to be http instead of https")
     // }
+    if (localStorage.getItem("GDPR") === "true") {
+      this.GDPR = false
+    } else {
+      this.GDPR = true
+    }
+    this.data.clearWatcher.asObservable().subscribe(data => {
+      if (data) {
+        this.rawFiltered = new DataFrame()
+        this.data.selectionUpdateTrigger.next(true)
+      }
+    })
+
     this.initialize().then(
       () => {
         this.route.params.subscribe(params => {
@@ -85,6 +109,15 @@ export class HomeComponent implements OnInit {
 
                 this.accounts.curtainAPI.getSessionSettings(settings[0]).then((d:any)=> {
                   this.data.session = d.data
+                  this.accounts.curtainAPI.getOwnership(settings[0]).then((data:any) => {
+                    if (data.data.ownership) {
+                      this.accounts.isOwner = true
+                    } else {
+                      this.accounts.isOwner = false
+                    }
+                  }).catch(error => {
+                    this.accounts.isOwner = false
+                  })
                   this.accounts.curtainAPI.postSettings(settings[0], token, this.onDownloadProgress).then((data:any) => {
                     if (data.data) {
                       this.restoreSettings(data.data).then(result => {
@@ -96,17 +129,10 @@ export class HomeComponent implements OnInit {
                           this.data.restoreTrigger.next(true)
                         })
                       })
-                      this.accounts.curtainAPI.getOwnership(settings[0]).then((data:any) => {
-                        if (data.data.ownership) {
-                          this.accounts.isOwner = true
-                        } else {
-                          this.accounts.isOwner = false
-                        }
-                      }).catch(error => {
-                        this.accounts.isOwner = false
-                      })
+
                     }
                   }).catch(error => {
+                    console.log(error.headers)
                     if (error.status === 400) {
                       this.toast.show("Credential Error", "Login Information Required").then()
                       const login = this.openLoginModal()
@@ -152,19 +178,18 @@ export class HomeComponent implements OnInit {
 
   handleFinish(e: boolean) {
     this.finished = e
-    console.log(this.finished)
     if (this.finished) {
       if (this.data.selected.length > 0) {
         this.data.finishedProcessingData.next(e)
         this.rawFiltered = this.data.raw.df.where(r => this.data.selected.includes(r[this.data.rawForm.primaryIDs])).bake()
-        console.log(this.rawFiltered)
         for (const s of this.rawFiltered) {
           this.addGeneToSelected(s).then();
         }
+      } else {
+        this.rawFiltered = new DataFrame()
+        this.data.finishedProcessingData.next(e)
       }
       this.finished = true
-      console.log(this.finished)
-      console.log(this.settings.settings.currentID)
     }
   }
 
@@ -285,6 +310,7 @@ export class HomeComponent implements OnInit {
       if (data.data) {
         this.data.session = data.data
         this.settings.settings.currentID = data.data.link_id
+        console.log(this.data.session)
         this.uniqueLink = location.origin + "/#/" + this.settings.settings.currentID
         this.uniprot.uniprotProgressBar.next({value: 100, text: "Session data saved"})
       }
@@ -471,15 +497,14 @@ export class HomeComponent implements OnInit {
     this.settings.settings.rankPlotAnnotation = {}
     this.settings.settings.textAnnotation = {}
     this.data.annotatedData = {}
-    this.rawFiltered = new DataFrame()
-
-    this.data.selectionUpdateTrigger.next(true)
+    this.data.clearWatcher.next(true)
   }
+
 
   openProfileCompare() {
     const ref = this.modal.open(ProfileCompareComponent, {size: "xl"})
-    if ( this.data.selectedComparison.length > 0) {
-      ref.componentInstance.selected = this.data.selectedComparison
+    if ( this.settings.settings.selectedComparison.length > 0) {
+      ref.componentInstance.selected = this.settings.settings.selectedComparison
     }
 
     ref.componentInstance.data = this.data.raw.df
@@ -596,6 +621,40 @@ export class HomeComponent implements OnInit {
 
   openStateModal() {
     const ref = this.modal.open(LocalSessionStateModalComponent, {scrollable: true})
+  }
+
+  openEnrichrModal() {
+    const ref = this.modal.open(EnrichrModalComponent, {scrollable: true})
+    ref.closed.subscribe(data => {
+      if (data) {
+        for (const i in data.geneRankMap) {
+          this.settings.settings.enrichrGeneRankMap[i] = data.geneRankMap[i]
+        }
+        this.settings.settings.enrichrRunList.push(data.library)
+        console.log(this.settings.settings.enrichrGeneRankMap)
+        console.log(this.settings.settings.enrichrRunList)
+        this.data.finishedProcessingData.next(true)
+      }
+    })
+  }
+
+  closeGDPR() {
+    this.GDPR = false
+    localStorage.setItem("GDPR", "true")
+  }
+
+  openSampleAndConditionModal() {
+    const ref = this.modal.open(SampleConditionAssignmentModalComponent, {scrollable: true})
+  }
+
+  openCompareSessionModal() {
+    const ref = this.modal.open(ComparisonAgainstOtherPromptComponent, {scrollable: true})
+    ref.closed.subscribe(data => {
+      if (data) {
+        const ref2 = this.modal.open(SessionComparisonResultViewerModalComponent, {scrollable: true, size: "xl"})
+        ref2.componentInstance.data = data
+      }
+    })
   }
 }
 

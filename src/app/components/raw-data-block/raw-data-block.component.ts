@@ -21,6 +21,9 @@ export class RawDataBlockComponent implements OnInit, OnDestroy {
   foundIn: string[] = []
   active = 2
   selfCheck = false
+  enrichrData: any = null
+  enrichrRunNameList: string[] = []
+  enrichrTermList: string[] = []
   @Input() set data(value: any) {
     this._data = value
 
@@ -28,7 +31,7 @@ export class RawDataBlockComponent implements OnInit, OnDestroy {
 
     const form = this.fb.group({
       annotate: [false],
-      profilePlot: [this.dataService.selectedComparison.includes(this.primaryID)],
+      profilePlot: [this.settings.settings.selectedComparison.includes(this.primaryID)],
     })
 
     for (const i in this.settings.settings.textAnnotation) {
@@ -47,6 +50,16 @@ export class RawDataBlockComponent implements OnInit, OnDestroy {
       if (this.uni) {
         if (this.uni["Gene Names"] !== "") {
           this.title = this.uni["Gene Names"]
+          const gene = this.uni["Gene Names"].split(";")[0]
+          if (this.settings.settings.enrichrGeneRankMap[gene]) {
+            this.enrichrData = this.settings.settings.enrichrGeneRankMap[gene]
+            this.enrichrRunNameList = Object.keys(this.enrichrData)
+            let terms: string[] = []
+            for (const i of this.enrichrRunNameList) {
+              terms = terms.concat(Object.keys(this.enrichrData[i]))
+            }
+            this.enrichrTermList = [...new Set(terms)]
+          }
         }
       }
     }
@@ -62,12 +75,29 @@ export class RawDataBlockComponent implements OnInit, OnDestroy {
   constructor(private scroll: ScrollService, public dataService: DataService, private uniprot: UniprotService, private modal: NgbModal, private settings: SettingsService, private fb: FormBuilder) {
     this.dataService.finishedProcessingData.asObservable().subscribe((value) => {
       if (value) {
-        this.foundIn = Object.keys(this.dataService.selectedMap[this._data[this.dataService.rawForm.primaryIDs]])
+        if (this.dataService.selectedMap[this._data[this.dataService.rawForm.primaryIDs]]) {
+          this.foundIn = Object.keys(this.dataService.selectedMap[this._data[this.dataService.rawForm.primaryIDs]])
+        }
       }
+      if (this.uni) {
+        if (this.uni["Gene Names"] !== "") {
+          const gene = this.uni["Gene Names"].split(";")[0]
+          if (this.settings.settings.enrichrGeneRankMap[gene]) {
+            this.enrichrData = this.settings.settings.enrichrGeneRankMap[gene]
+            this.enrichrRunNameList = Object.keys(this.enrichrData)
+            let terms: string[] = []
+            for (const i of this.enrichrRunNameList) {
+              terms = terms.concat(Object.keys(this.enrichrData[i]))
+            }
+            this.enrichrTermList = [...new Set(terms)]
+          }
+        }
+      }
+      this.form.controls["profilePlot"].setValue(this.settings.settings.selectedComparison.includes(this.primaryID))
     })
 
     this.dataService.batchAnnotateAnnoucement.asObservable().subscribe((value: any) => {
-      this.form.controls["profilePlot"].setValue(this.dataService.selectedComparison.includes(this.primaryID))
+      this.form.controls["profilePlot"].setValue(this.settings.settings.selectedComparison.includes(this.primaryID))
       if (value.id === this.primaryID || value.id.includes(this.primaryID)) {
         this.form.controls["annotate"].setValue(!value.remove)
       }
@@ -88,22 +118,20 @@ export class RawDataBlockComponent implements OnInit, OnDestroy {
 
   profileCompare() {
     if (this.form.value.profilePlot) {
-      if (!this.dataService.selectedComparison.includes(this.primaryID)) {
-        this.dataService.selectedComparison.push(this.primaryID)
+      if (!this.settings.settings.selectedComparison.includes(this.primaryID)) {
+        this.settings.settings.selectedComparison.push(this.primaryID)
       }
     } else {
-      if (this.dataService.selectedComparison.includes(this.primaryID)) {
-        const ind = this.dataService.selectedComparison.indexOf(this.primaryID)
+      if (this.settings.settings.selectedComparison.includes(this.primaryID)) {
+        const ind = this.settings.settings.selectedComparison.indexOf(this.primaryID)
         console.log(ind)
-        if (this.dataService.selectedComparison.length === 1) {
-          this.dataService.selectedComparison = []
+        if (this.settings.settings.selectedComparison.length === 1) {
+          this.settings.settings.selectedComparison = []
         } else {
-          this.dataService.selectedComparison.splice(ind, 1)
+          this.settings.settings.selectedComparison.splice(ind, 1)
         }
       }
     }
-
-    console.log(this.dataService.selectedComparison)
   }
 
   annotate() {

@@ -1,4 +1,4 @@
-import { NgModule } from '@angular/core';
+import { NgModule, isDevMode } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import * as PlotlyJS from 'plotly.js-dist-min';
 import { PlotlyModule } from 'angular-plotly.js';
@@ -51,7 +51,10 @@ import { DefaultColorPaletteComponent } from './components/default-color-palette
 import { DataSelectionManagementComponent } from './components/data-selection-management/data-selection-management.component';
 import { SessionExpiredModalComponent } from './components/session-expired-modal/session-expired-modal.component';
 import { QrcodeModalComponent } from './components/qrcode-modal/qrcode-modal.component';
-import {NgxQRCodeModule} from "@techiediaries/ngx-qrcode";
+//import {NgxQRCodeModule} from "@techiediaries/ngx-qrcode";
+
+import { NgxQrcodeStylingModule } from 'ngx-qrcode-styling';
+
 import { CollaborateModalComponent } from './components/collaborate-modal/collaborate-modal.component';
 import { SideFloatControlComponent } from './components/side-float-control/side-float-control.component';
 import { DraggableElementComponent } from './components/draggable-element/draggable-element.component';
@@ -60,6 +63,11 @@ import { SelectedDataDistributionPlotComponent } from './components/selected-dat
 import { LocalSessionStateModalComponent } from './components/local-session-state-modal/local-session-state-modal.component';
 import { RankAbundanceModalComponent } from './components/rank-abundance-modal/rank-abundance-modal.component';
 import { EnrichrModalComponent } from './components/enrichr-modal/enrichr-modal.component';
+import { SampleConditionAssignmentModalComponent } from './components/sample-condition-assignment-modal/sample-condition-assignment-modal.component';
+import { ServiceWorkerModule } from '@angular/service-worker';
+import { ComparisonAgainstOtherPromptComponent } from './components/comparison-against-other-prompt/comparison-against-other-prompt.component';
+import { SessionComparisonResultViewerModalComponent } from './components/session-comparison-result-viewer-modal/session-comparison-result-viewer-modal.component';
+import { CurtainStatsSummaryComponent } from './components/curtain-stats-summary/curtain-stats-summary.component';
 PlotlyModule.plotlyjs = PlotlyJS;
 @NgModule({
   declarations: [
@@ -109,6 +117,10 @@ PlotlyModule.plotlyjs = PlotlyJS;
     LocalSessionStateModalComponent,
     RankAbundanceModalComponent,
     EnrichrModalComponent,
+    SampleConditionAssignmentModalComponent,
+    ComparisonAgainstOtherPromptComponent,
+    SessionComparisonResultViewerModalComponent,
+    CurtainStatsSummaryComponent,
   ],
   imports: [
     BrowserModule,
@@ -122,7 +134,13 @@ PlotlyModule.plotlyjs = PlotlyJS;
     QuillModule.forRoot(),
     AccountsModule,
     NgxPrintModule,
-    NgxQRCodeModule
+    NgxQrcodeStylingModule,
+    ServiceWorkerModule.register('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      // Register the ServiceWorker as soon as the application is stable
+      // or after 30 seconds (whichever comes first).
+      registrationStrategy: 'registerWhenStable:30000'
+    })
   ],
   providers: [HttpClient,
   ],

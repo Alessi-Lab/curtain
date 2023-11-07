@@ -12,6 +12,7 @@ import {ToastService} from "../../toast.service";
   styleUrls: ['./file-form.component.scss']
 })
 export class FileFormComponent implements OnInit {
+  iscollapse=false;
   progressBar: any = {value: 0, text: ""}
   transformedFC: boolean = false
   transformedP: boolean = false
@@ -97,7 +98,6 @@ export class FileFormComponent implements OnInit {
             } else if (data.data.type === "resultRaw") {
               console.log(data.data.settings.currentID)
               this.data.raw.df = fromJSON(data.data.raw)
-              this.data.sampleMap = data.data.sampleMap
               for (const s in this.settings.settings) {
 
                 if (this.settings.settings.hasOwnProperty(s)) {
@@ -106,7 +106,7 @@ export class FileFormComponent implements OnInit {
                 }
               }
               this.data.conditions = data.data.conditions
-              this.data.colorMap = data.data.colorMap
+              console.log(this.settings.settings)
               this.processUniProt()
               worker.terminate()
             } else if (data.data.type === "resultDifferentialCompleted") {
@@ -183,7 +183,7 @@ export class FileFormComponent implements OnInit {
         if (!conditions.includes(condition)) {
           conditions.push(condition)
         }
-        this.data.sampleMap[s] = {replicate: replicate, condition: condition}
+        this.settings.settings.sampleMap[s] = {replicate: replicate, condition: condition, name: s}
         if (!this.settings.settings.sampleOrder[condition]) {
           this.settings.settings.sampleOrder[condition] = []
         }
@@ -211,7 +211,7 @@ export class FileFormComponent implements OnInit {
         //this.settings.settings.barchartColorMap[c] = null
         colorPosition++
       }
-      this.data.colorMap = colorMap
+      this.settings.settings.colorMap = colorMap
       this.data.conditions = conditions
       this.data.differential.df = this.toUpperCaseColumn(this.data.differentialForm.primaryIDs, this.data.differential.df)
       this.data.raw.df = this.toUpperCaseColumn(this.data.rawForm.primaryIDs, this.data.raw.df)
@@ -430,5 +430,13 @@ export class FileFormComponent implements OnInit {
       }
     }
     return allGenes
+  }
+
+  handleFileLoadingProgress(progress:number, fileType: string) {
+    if (progress === 100) {
+      this.updateProgressBar(progress, "Finished loading "+fileType)
+    } else {
+      this.updateProgressBar(progress, "Loading "+fileType)
+    }
   }
 }
